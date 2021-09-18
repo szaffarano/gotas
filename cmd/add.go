@@ -11,39 +11,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package cmd
 
 import (
-	"bytes"
-	"encoding/json"
-	"log"
+	"fmt"
 
-	"github.com/szaffarano/gotas/cmd"
+	"github.com/spf13/cobra"
 )
 
-var (
-	version = "dev"
-	commit  = "none"
-	date    = "unknown"
-	builtBy = "unknown"
-)
-
-func main() {
-	cmd.Execute(getVersion())
-}
-
-func getVersion() string {
-	version := struct {
-		Version string `json:",omitempty"`
-		Commit  string `json:",omitempty"`
-		Date    string `json:",omitempty"`
-		BuiltBy string `json:",omitempty"`
-	}{version, commit, date, builtBy}
-
-	var buffer bytes.Buffer
-	if err := json.NewEncoder(&buffer).Encode(version); err != nil {
-		log.Fatal("Error building version")
+func addCmd() *cobra.Command {
+	var addCmd = cobra.Command{
+		Use:   "add",
+		Short: "Creates a new organization or user.",
+		Long: `When creating a new user, shows the resultant UUID that the client software
+useѕ to uniquely identify a user, because <user-name> need not be unique.`,
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println("not implemented")
+		},
 	}
 
-	return buffer.String()
+	return &addCmd
 }

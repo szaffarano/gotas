@@ -11,39 +11,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package cmd
 
 import (
-	"bytes"
-	"encoding/json"
-	"log"
+	"fmt"
 
-	"github.com/szaffarano/gotas/cmd"
+	"github.com/spf13/cobra"
 )
 
-var (
-	version = "dev"
-	commit  = "none"
-	date    = "unknown"
-	builtBy = "unknown"
-)
-
-func main() {
-	cmd.Execute(getVersion())
-}
-
-func getVersion() string {
-	version := struct {
-		Version string `json:",omitempty"`
-		Commit  string `json:",omitempty"`
-		Date    string `json:",omitempty"`
-		BuiltBy string `json:",omitempty"`
-	}{version, commit, date, builtBy}
-
-	var buffer bytes.Buffer
-	if err := json.NewEncoder(&buffer).Encode(version); err != nil {
-		log.Fatal("Error building version")
+// resumeCmd represents the resume command
+func resumeCmd() *cobra.Command {
+	var resumeCmd = cobra.Command{
+		Use:   "resume",
+		Short: "Resumes, or un-suspends an organization or user",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println("not implemented")
+		},
 	}
 
-	return buffer.String()
+	return &resumeCmd
 }
