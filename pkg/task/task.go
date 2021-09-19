@@ -14,9 +14,13 @@
 package task
 
 import (
+	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/apex/log"
 )
 
 const (
@@ -44,7 +48,7 @@ func NewMessage(raw string) (Message, error) {
 	for _, header := range headers {
 		splitted := strings.Split(header, ": ")
 		if len(splitted) != 2 {
-			return message, fmt.Errorf("Error parsing header entry: %q", header)
+			return message, fmt.Errorf("error parsing header entry: %q", header)
 		}
 
 		message.Header[splitted[0]] = splitted[1]
@@ -54,11 +58,26 @@ func NewMessage(raw string) (Message, error) {
 }
 
 func (m Message) String() string {
-	var b strings.Builder
+	var builder strings.Builder
 	for h := range m.Header {
-		fmt.Fprintf(&b, "%s: %s\n", h, m.Header[h])
+		fmt.Fprintf(&builder, "%s: %s\n", h, m.Header[h])
 	}
-	fmt.Fprintf(&b, "\n%s", m.Payload)
+	fmt.Fprintf(&builder, "\n%s", m.Payload)
 
-	return b.String()
+	return builder.String()
+}
+
+func (m Message) Serialize() []byte {
+	msg := m.String()
+	size := uint32(len(msg) + 4)
+
+	buffer := new(bytes.Buffer)
+	if err := binary.Write(buffer, binary.BigEndian, size); err != nil {
+		log.Error("Error writing message to the client")
+	}
+
+	if err := binary.Write(buffer, binary.BigEndian, []byte(msg)); err != nil {
+		log.Error("Error writing message to the client")
+	}
+	return buffer.Bytes()
 }
