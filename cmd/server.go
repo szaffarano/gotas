@@ -14,17 +14,89 @@
 package cmd
 
 import (
+	"encoding/binary"
+
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
+	"github.com/szaffarano/gotas/pkg/config"
+	"github.com/szaffarano/gotas/pkg/task"
 )
 
 func serverCmd() *cobra.Command {
+	daemon := false
 	var serverCmd = cobra.Command{
 		Use:   "server",
 		Short: "Runs the server",
 		Run: func(_ *cobra.Command, _ []string) {
-			log.Info("not implemented")
+			server, err := task.NewServer()
+			if err != nil {
+				log.Fatalf("Error initializing server: %s", err.Error())
+			}
+			defer server.Close()
+
+			for {
+				client, err := server.NextClient()
+				if err != nil {
+					log.Errorf("Error receiving client: %s", err.Error())
+				}
+
+				go process(client)
+			}
 		},
 	}
+
+	serverCmd.Flags().BoolVarP(&daemon, "daemon", "d", false, "Runs server as a daemon")
+
 	return &serverCmd
+}
+
+func process(client *task.Client) {
+	log.Info("Processing new client")
+
+	defer client.Close()
+	c := config.Get()
+
+	buffer := make([]byte, c.Request.Limit)
+
+	// first 4 bytes are the message size
+	if num, err := client.Read(buffer[:4]); err != nil {
+		log.Errorf("Error reading size: %s", err.Error())
+		return
+	} else if num != 4 {
+		log.Errorf("Error reading size, expected 4 bytes, but got %d", num)
+		return
+	}
+	messageSize := int(binary.BigEndian.Uint32(buffer[:4]))
+
+	if messageSize > len(buffer) {
+		log.Errorf("Message limit exceeded: %d", messageSize)
+		client.Write([]byte("error"))
+		return
+	}
+
+	// messageSize includes the first 4 bytes
+	messageSize, err := client.Read(buffer[:messageSize-4])
+	if err != nil {
+		log.Errorf("Error reading: %s", err.Error())
+		return
+	}
+
+	if msg, err := task.NewMessage(string(buffer[:messageSize])); err != nil {
+		log.Errorf("Error parsing message", err)
+	} else {
+		log.Info("Message received")
+		log.Debug(msg.String())
+		response := task.Message{
+			Header: map[string]string{
+				"type":   "response",
+				"code":   "201",
+				"status": "Ok",
+			},
+		}
+
+		client.Write([]byte(response.Serialize()[:4]))
+		client.Write([]byte(response.Serialize()[4:]))
+	}
+
+	log.Info("Finishing")
 }
