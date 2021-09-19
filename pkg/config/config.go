@@ -26,7 +26,7 @@ import (
 type Flags struct {
 	ConfigFile string
 	Quiet      bool
-	Debug      bool
+	Verbose    bool
 	DataDir    string
 }
 
@@ -64,7 +64,7 @@ var conf config
 
 func InitConfig(flags Flags) {
 	log.SetHandler(cli.Default)
-	if flags.Debug {
+	if flags.Verbose {
 		log.SetLevel(log.DebugLevel)
 	} else if flags.Quiet {
 		log.SetLevel(log.ErrorLevel)
@@ -101,7 +101,7 @@ func InitConfig(flags Flags) {
 	overrideFromEnvironment()
 
 	conf.ConfigFile = flags.ConfigFile
-	conf.Debug = flags.Debug
+	conf.Verbose = flags.Verbose
 	conf.Quiet = flags.Quiet
 	conf.DataDir = flags.DataDir
 

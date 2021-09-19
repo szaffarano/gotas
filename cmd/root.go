@@ -39,7 +39,7 @@ programming language`,
 
 	rootCmd.
 		PersistentFlags().
-		BoolVarP(&flags.Debug, "debug", "d", false, "Generates debugging diagnostics")
+		BoolVarP(&flags.Verbose, "verbose", "v", false, "Generates debugging diagnostics")
 
 	rootCmd.
 		PersistentFlags().
