@@ -16,7 +16,6 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"log"
 
 	"github.com/szaffarano/gotas/cmd"
 )
@@ -42,7 +41,7 @@ func getVersion() string {
 
 	var buffer bytes.Buffer
 	if err := json.NewEncoder(&buffer).Encode(version); err != nil {
-		log.Fatal("Error building version")
+		panic("Error building version")
 	}
 
 	return buffer.String()

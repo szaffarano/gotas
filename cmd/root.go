@@ -35,11 +35,11 @@ programming language`,
 
 	rootCmd.
 		PersistentFlags().
-		BoolVar(&flags.Quiet, "quiet", false, "Turns off verbose output")
+		BoolVarP(&flags.Quiet, "quiet", "q", false, "Turns off verbose output")
 
 	rootCmd.
 		PersistentFlags().
-		BoolVar(&flags.Debug, "debug", false, "Generates debugging diagnostics")
+		BoolVarP(&flags.Debug, "debug", "d", false, "Generates debugging diagnostics")
 
 	rootCmd.
 		PersistentFlags().

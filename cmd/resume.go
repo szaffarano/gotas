@@ -14,8 +14,7 @@
 package cmd
 
 import (
-	"fmt"
-
+	"github.com/apex/log"
 	"github.com/spf13/cobra"
 )
 
@@ -24,8 +23,8 @@ func resumeCmd() *cobra.Command {
 	var resumeCmd = cobra.Command{
 		Use:   "resume",
 		Short: "Resumes, or un-suspends an organization or user",
-		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println("not implemented")
+		Run: func(_ *cobra.Command, _ []string) {
+			log.Info("not implemented")
 		},
 	}
 

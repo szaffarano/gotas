@@ -14,8 +14,7 @@
 package cmd
 
 import (
-	"fmt"
-
+	"github.com/apex/log"
 	"github.com/spf13/cobra"
 )
 
@@ -23,8 +22,8 @@ func serverCmd() *cobra.Command {
 	var serverCmd = cobra.Command{
 		Use:   "server",
 		Short: "Runs the server",
-		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println("not implemented")
+		Run: func(_ *cobra.Command, _ []string) {
+			log.Info("not implemented")
 		},
 	}
 	return &serverCmd

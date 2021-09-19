@@ -15,10 +15,11 @@ package config
 
 import (
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 
+	"github.com/apex/log"
+	"github.com/apex/log/handlers/cli"
 	"gopkg.in/yaml.v3"
 )
 
@@ -62,6 +63,15 @@ type config struct {
 var conf config
 
 func InitConfig(flags Flags) {
+	log.SetHandler(cli.Default)
+	if flags.Debug {
+		log.SetLevel(log.DebugLevel)
+	} else if flags.Quiet {
+		log.SetLevel(log.ErrorLevel)
+	} else {
+		log.SetLevel(log.InfoLevel)
+	}
+
 	// configuration file lookup:
 	//   1. --config flag
 	//   2.1 if --data is defined, $data/config
@@ -81,21 +91,28 @@ func InitConfig(flags Flags) {
 
 	content, err := ioutil.ReadFile(flags.ConfigFile)
 	if err != nil {
-		log.Fatal("Error opening config file", err)
+		log.Fatalf("Error opening config file: %s", err.Error())
 	}
 	err = yaml.Unmarshal(content, &conf)
 	if err != nil {
-		log.Fatal("Error reading config file", err)
+		log.Fatalf("Error reading config file", err.Error())
 	}
+
+	overrideFromEnvironment()
 
 	conf.ConfigFile = flags.ConfigFile
 	conf.Debug = flags.Debug
 	conf.Quiet = flags.Quiet
 	conf.DataDir = flags.DataDir
 
-	log.Printf("Config file initialized: %s", conf.ConfigFile)
+	log.Debugf("Config file initialized: %s", conf.ConfigFile)
 }
 
 func Get() *config {
 	return &conf
+}
+
+func overrideFromEnvironment() {
+	// @TODO read environment variables to override configurations
+	// corresponds to `--NAME=VALUE   Temporary configuration override` taskd flags
 }
