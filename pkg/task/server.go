@@ -10,6 +10,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 package task
 
 import (
@@ -43,11 +44,11 @@ type Server struct {
 }
 
 func (s *Server) NextClient() (*Client, error) {
-	if conn, err := s.listener.Accept(); err != nil {
+	conn, err := s.listener.Accept()
+	if err != nil {
 		return nil, err
-	} else {
-		return &Client{conn}, nil
 	}
+	return &Client{conn}, nil
 }
 
 func (s *Server) Close() {

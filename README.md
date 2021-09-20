@@ -1,3 +1,6 @@
+[![Build Status](https://github.com/szaffarano/gotas/workflows/Go%20CI/badge.svg)](https://github.com/szaffarano/gotas/actions?workflow=Go%20CI)
+[![Go Report Card](https://goreportcard.com/badge/github.com/szaffarano/gotas)](https://goreportcard.com/report/github.com/szaffarano/gotas) 
+
 # Gotas
 
 Gotas is a [task server](https://github.com/GothenburgBitFactory/taskserver/) Go implementation.

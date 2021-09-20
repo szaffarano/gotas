@@ -29,7 +29,9 @@ func Execute(version string) {
 		Long: `Gotas aims to implement a taskwarrior server (aka taskd) using Go 
 programming language`,
 		PersistentPreRun: func(_ *cobra.Command, _ []string) {
-			config.InitConfig(flags)
+			if err := config.InitConfig(flags); err != nil {
+				panic(err.Error())
+			}
 		},
 	}
 

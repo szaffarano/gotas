@@ -14,6 +14,7 @@
 package task
 
 import (
+	"encoding/binary"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -109,5 +110,30 @@ func TestToStringMessage(t *testing.T) {
 
 	for _, c := range cases {
 		assert.Equal(t, c.expected, c.given.String())
+	}
+}
+func TestSerializeMessage(t *testing.T) {
+	cases := []struct {
+		title    string
+		given    Message
+		expected []byte
+	}{
+		{
+			title:    "simple message",
+			given:    Message{Header: map[string]string{"type": "response"}},
+			expected: []byte("type: response\n\n"),
+		},
+		{
+			title:    "simple message with payload",
+			given:    Message{map[string]string{"type": "response"}, "payload"},
+			expected: []byte("type: response\n\npayload"),
+		},
+	}
+
+	for _, c := range cases {
+		message := c.given.Serialize()
+		size := binary.BigEndian.Uint32(message[:4])
+		assert.Equal(t, c.expected, message[4:])
+		assert.Equal(t, uint32(len(message)), size)
 	}
 }

@@ -14,13 +14,10 @@
 package task
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"strings"
-
-	"github.com/apex/log"
 )
 
 const (
@@ -71,13 +68,11 @@ func (m Message) Serialize() []byte {
 	msg := m.String()
 	size := uint32(len(msg) + 4)
 
-	buffer := new(bytes.Buffer)
-	if err := binary.Write(buffer, binary.BigEndian, size); err != nil {
-		log.Error("Error writing message to the client")
-	}
+	buffer := make([]byte, size)
 
-	if err := binary.Write(buffer, binary.BigEndian, []byte(msg)); err != nil {
-		log.Error("Error writing message to the client")
-	}
-	return buffer.Bytes()
+	binary.BigEndian.PutUint32(buffer[:4], size)
+
+	copy(buffer[4:], msg)
+
+	return buffer
 }

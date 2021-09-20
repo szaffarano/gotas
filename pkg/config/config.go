@@ -14,12 +14,14 @@
 package config
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 
 	"github.com/apex/log"
 	"github.com/apex/log/handlers/cli"
+	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 )
 
@@ -62,7 +64,8 @@ type config struct {
 
 var conf config
 
-func InitConfig(flags Flags) {
+func InitConfig(flags Flags) error {
+	// log configuration, @TODO be aware of `config.Log`
 	log.SetHandler(cli.Default)
 	if flags.Verbose {
 		log.SetLevel(log.DebugLevel)
@@ -74,28 +77,28 @@ func InitConfig(flags Flags) {
 
 	// configuration file lookup:
 	//   1. --config flag
+	//   2. if --config is not defined:
 	//   2.1 if --data is defined, $data/config
 	//   2.2 if --data is not defined, $TASKDATA/config
 	//   3. Otherwise fail
-	if flags.DataDir == "" {
-		if value, ok := os.LookupEnv("TASKDDATA"); !ok {
-			log.Fatal("You have to define either $TASKDDATA variable or data flag")
-		} else {
+	if flags.ConfigFile == "" {
+		if flags.DataDir == "" {
+			value, ok := os.LookupEnv("TASKDDATA")
+			if !ok {
+				return fmt.Errorf("you have to define either $TASKDDATA variable or data flag")
+			}
 			flags.DataDir = value
 		}
-	}
-
-	if flags.ConfigFile == "" {
 		flags.ConfigFile = filepath.Join(flags.DataDir, "config")
 	}
 
 	content, err := ioutil.ReadFile(flags.ConfigFile)
 	if err != nil {
-		log.Fatalf("Error opening config file: %s", err.Error())
+		return errors.Wrapf(err, "Error opening config configuration: %s", conf.ConfigFile)
 	}
 	err = yaml.Unmarshal(content, &conf)
 	if err != nil {
-		log.Fatalf("Error reading config file", err.Error())
+		return errors.Wrapf(err, "Error reading config configuration: %s", conf.ConfigFile)
 	}
 
 	overrideFromEnvironment()
@@ -106,10 +109,15 @@ func InitConfig(flags Flags) {
 	conf.DataDir = flags.DataDir
 
 	log.Debugf("Config file initialized: %s", conf.ConfigFile)
+	return nil
 }
 
 func Get() *config {
 	return &conf
+}
+
+func clearConfig() {
+	conf = config{}
 }
 
 func overrideFromEnvironment() {
