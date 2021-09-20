@@ -70,7 +70,7 @@ func process(client *task.Client) {
 
 	if messageSize > len(buffer) {
 		log.Errorf("Message limit exceeded: %d", messageSize)
-		client.Write([]byte("error"))
+		// @TODO reply a proper message to the client
 		return
 	}
 
@@ -94,8 +94,24 @@ func process(client *task.Client) {
 			},
 		}
 
-		client.Write([]byte(response.Serialize()[:4]))
-		client.Write([]byte(response.Serialize()[4:]))
+		responseMessage := response.Serialize()
+
+		if size, err := client.Write([]byte(responseMessage[:4])); err != nil {
+			log.Errorf("Error writing response to the client: %w", err)
+			return
+		} else if size != 4 {
+			log.Errorf("Error writing response to the client")
+			return
+		}
+
+		if size, err := client.Write([]byte(responseMessage[4:])); err != nil {
+			log.Errorf("Error writing response to the client: %w", err)
+			return
+		} else if size != 4 {
+			log.Errorf("Error writing response to the client")
+			return
+		}
+
 	}
 
 	log.Info("Finishing")
