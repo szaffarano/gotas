@@ -83,11 +83,11 @@ func InitConfig(flags Flags) error {
 	//   3. Otherwise fail
 	if flags.ConfigFile == "" {
 		if flags.DataDir == "" {
-			if value, ok := os.LookupEnv("TASKDDATA"); !ok {
+			value, ok := os.LookupEnv("TASKDDATA")
+			if !ok {
 				return fmt.Errorf("you have to define either $TASKDDATA variable or data flag")
-			} else {
-				flags.DataDir = value
 			}
+			flags.DataDir = value
 		}
 		flags.ConfigFile = filepath.Join(flags.DataDir, "config")
 	}
