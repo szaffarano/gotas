@@ -1,4 +1,4 @@
-[![Build Status](https://github.com/szaffarano/gotas/workflows/test%20and%20build/badge.svg)](https://github.com/szaffarano/gotas/actions?workflow=test%20and%20build)
+[![Build Status](https://github.com/szaffarano/gotas/workflows/Go%20CI/badge.svg)](https://github.com/szaffarano/gotas/actions?workflow=Go%20CI)
 [![Go Report Card](https://goreportcard.com/badge/github.com/szaffarano/gotas)](https://goreportcard.com/report/github.com/szaffarano/gotas) 
 
 # Gotas
