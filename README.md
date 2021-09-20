@@ -1,6 +1,7 @@
 [![Build Status](https://github.com/szaffarano/gotas/workflows/Go%20CI/badge.svg)](https://github.com/szaffarano/gotas/actions?workflow=Go%20CI)
 [![Go Report Card](https://goreportcard.com/badge/github.com/szaffarano/gotas)](https://goreportcard.com/report/github.com/szaffarano/gotas) 
 [![codecov](https://codecov.io/gh/szaffarano/gotas/branch/master/graph/badge.svg?token=8UPQNA4E34)](https://codecov.io/gh/szaffarano/gotas)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 # Gotas
 
