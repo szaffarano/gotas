@@ -10,8 +10,8 @@ on:
       - "**"
 
 jobs:
-  lint:
-    name: Lint
+  build:
+    name: CI build
     runs-on: ubuntu-latest
     steps:
     - name: Install Go
@@ -20,13 +20,23 @@ jobs:
         go-version: 1.17.x
     - name: Checkout code
       uses: actions/checkout@v2
+    - name: Build project
+      run: go build .
     - name: Run linters
       uses: golangci/golangci-lint-action@v2
-  test:
+    - name: Test with coverage
+      run: go test -v -coverprofile=coverage.txt -covermode=atomic ./...
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v1
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+
+  multiplat-tests:
+    name: Test in other platforms
     strategy:
       matrix:
         go-version: [1.17.x]
-        platform: [ubuntu-latest, macos-latest, windows-latest]
+        platform: [macos-latest, windows-latest]
     runs-on: ${{ matrix.platform }}
     steps:
     - name: Install Go
@@ -37,20 +47,4 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v2
     - name: Run tests
-      run: go test -v -covermode=count ./...
-
-  coverage:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Install Go
-      if: success()
-      uses: actions/setup-go@v2
-      with:
-        go-version: 1.17.x
-    - name: Checkout code
-      uses: actions/checkout@v2
-    - name: Calc coverage
-      run: |
-        go test -v -covermode=count -coverprofile=coverage.out ./...
-    - name: Convert coverage.out to coverage.lcov
-      uses: jandelgado/gcov2lcov-action@v1.0.8
+      run: go test -v ./...
