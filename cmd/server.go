@@ -32,7 +32,11 @@ func serverCmd() *cobra.Command {
 			if err != nil {
 				log.Fatalf("Error initializing server: %s", err.Error())
 			}
-			defer server.Close()
+			defer func() {
+				if err := server.Close(); err != nil {
+					log.Errorf("Error closing server: %w", err)
+				}
+			}()
 
 			for {
 				client, err := server.NextClient()
@@ -50,13 +54,14 @@ func serverCmd() *cobra.Command {
 	return &serverCmd
 }
 
-func process(client *task.Client) {
+func process(client task.Client) {
 	log.Info("Processing new client")
 
 	defer client.Close()
-	c := config.Get()
 
-	buffer := make([]byte, c.Request.Limit)
+	cfg := config.Get()
+
+	buffer := make([]byte, cfg.Request.Limit)
 
 	// first 4 bytes are the message size
 	if num, err := client.Read(buffer[:4]); err != nil {
@@ -81,37 +86,37 @@ func process(client *task.Client) {
 		return
 	}
 
-	if msg, err := task.NewMessage(string(buffer[:messageSize])); err != nil {
+	msg, err := task.NewMessage(string(buffer[:messageSize]))
+	if err != nil {
 		log.Errorf("Error parsing message", err)
-	} else {
-		log.Info("Message received")
-		log.Debug(msg.String())
-		response := task.Message{
-			Header: map[string]string{
-				"type":   "response",
-				"code":   "201",
-				"status": "Ok",
-			},
-		}
+		return
+	}
+	log.Info("Message received")
+	log.Debug(msg.String())
+	response := task.Message{
+		Header: map[string]string{
+			"type":   "response",
+			"code":   "201",
+			"status": "Ok",
+		},
+	}
 
-		responseMessage := response.Serialize()
+	responseMessage := response.Serialize()
 
-		if size, err := client.Write([]byte(responseMessage[:4])); err != nil {
-			log.Errorf("Error writing response to the client: %w", err)
-			return
-		} else if size != 4 {
-			log.Errorf("Error writing response to the client")
-			return
-		}
+	if size, err := client.Write([]byte(responseMessage[:4])); err != nil {
+		log.Errorf("Error writing response to the client: %w", err)
+		return
+	} else if size != 4 {
+		log.Errorf("Error writing response to the client")
+		return
+	}
 
-		if size, err := client.Write([]byte(responseMessage[4:])); err != nil {
-			log.Errorf("Error writing response to the client: %w", err)
-			return
-		} else if size != 4 {
-			log.Errorf("Error writing response to the client")
-			return
-		}
-
+	if size, err := client.Write([]byte(responseMessage[4:])); err != nil {
+		log.Errorf("Error writing response to the client: %w", err)
+		return
+	} else if size != 4 {
+		log.Errorf("Error writing response to the client")
+		return
 	}
 
 	log.Info("Finishing")
