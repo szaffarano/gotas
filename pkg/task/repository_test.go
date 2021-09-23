@@ -55,9 +55,10 @@ func TestNewRepository(t *testing.T) {
 		baseDir := tempDir(t)
 		defer os.RemoveAll(baseDir)
 
-		os.Chmod(baseDir, 0400)
+		err := os.Chmod(baseDir, 0400)
+		assert.Nil(t, err)
 
-		_, err := NewRepository(baseDir)
+		_, err = NewRepository(baseDir)
 
 		assert.NotNil(t, err)
 	})
@@ -66,9 +67,10 @@ func TestNewRepository(t *testing.T) {
 		baseDir := tempDir(t)
 		defer os.RemoveAll(baseDir)
 
-		os.Chmod(baseDir, 0000)
+		err := os.Chmod(baseDir, 0000)
+		assert.Nil(t, err)
 
-		_, err := NewRepository(baseDir)
+		_, err = NewRepository(baseDir)
 
 		assert.NotNil(t, err)
 	})
