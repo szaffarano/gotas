@@ -3,6 +3,7 @@ package task
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -37,9 +38,9 @@ type Repository struct {
 
 // NewRepository create a brand new repository in the given dataDir
 func NewRepository(dataDir string) (*Repository, error) {
-	if fileInfo, err := os.Stat(dataDir); os.IsNotExist(err) {
+	if fileInfo, err := os.Stat(dataDir); errors.Is(err, fs.ErrNotExist) {
 		return nil, fmt.Errorf("%v: does not exist", dataDir)
-	} else if os.IsPermission(err) {
+	} else if errors.Is(err, fs.ErrPermission) {
 		return nil, fmt.Errorf("%v: permission denied", dataDir)
 	} else if err != nil {
 		return nil, fmt.Errorf("read dir info %v: %v", dataDir, err)
