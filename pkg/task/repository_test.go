@@ -3,6 +3,7 @@
 package task
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -62,6 +63,7 @@ func TestNewRepository(t *testing.T) {
 
 		_, err = NewRepository(baseDir)
 
+		fmt.Println("##### 0400", err)
 		assert.NotNil(t, err)
 	})
 

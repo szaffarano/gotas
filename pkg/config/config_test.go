@@ -83,6 +83,21 @@ func TestConfig(t *testing.T) {
 		assert.NotNil(t, err)
 	})
 
+	t.Run("setters and getters", func(t *testing.T) {
+		cfg, err := New(filepath.Join(emptyDataDir, "some-config"))
+
+		assert.Nil(t, err)
+
+		cfg.Set("str", "hello")
+		cfg.SetInt("num", 1)
+		cfg.SetBool("bool", true)
+
+		assert.Equal(t, "hello", cfg.Get("str"))
+		assert.Equal(t, 1, cfg.GetInt("num"))
+		assert.Equal(t, true, cfg.GetBool("bool"))
+
+	})
+
 }
 
 func assertConfig(t *testing.T, conf Config) {
