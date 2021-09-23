@@ -1,42 +1,57 @@
 package cmd
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/spf13/cobra"
-	"github.com/szaffarano/gotas/pkg/config"
 )
 
+const (
+	taskdDataVariableName = "TASKDDATA"
+)
+
+type flags struct {
+	quiet    bool
+	verbose  bool
+	taskData string
+}
+
 func Execute(version string) {
-	var flags config.Flags
+	var flags flags
 
 	// rootCmd represents the base command when called without any subcommands
 	rootCmd := &cobra.Command{
-		Use:     "gotas",
-		Version: version,
-		Short:   "Taskwarrior server",
+		Use:           "gotas",
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		Version:       version,
+		Short:         "Taskwarrior server",
 		Long: `Gotas aims to implement a taskwarrior server (aka taskd) using Go 
 programming language`,
-		PersistentPreRun: func(_ *cobra.Command, _ []string) {
-			if err := config.InitConfig(flags); err != nil {
-				panic(err.Error())
+		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
+			if flags.taskData == "" {
+				value, ok := os.LookupEnv(taskdDataVariableName)
+				if !ok {
+					return fmt.Errorf("you have to define either $%s variable or data flag", taskdDataVariableName)
+				}
+				flags.taskData = value
 			}
+			return nil
 		},
 	}
 
 	rootCmd.
 		PersistentFlags().
-		BoolVarP(&flags.Quiet, "quiet", "q", false, "Turns off verbose output")
+		BoolVarP(&flags.quiet, "quiet", "q", false, "Turns off verbose output")
 
 	rootCmd.
 		PersistentFlags().
-		BoolVarP(&flags.Verbose, "verbose", "v", false, "Generates debugging diagnostics")
+		BoolVarP(&flags.verbose, "verbose", "v", false, "Generates debugging diagnostics")
 
 	rootCmd.
 		PersistentFlags().
-		StringVar(&flags.DataDir, "data", "", "Data directory (default is $HOME/.gotas")
-
-	rootCmd.
-		PersistentFlags().
-		StringVar(&flags.ConfigFile, "config", "", "config file (default is $HOME/.gotas.yaml)")
+		StringVar(&flags.taskData, "data", "", "Data directory (default is $HOME/.gotas")
 
 	rootCmd.AddCommand(addCmd())
 	rootCmd.AddCommand(configCmd())
