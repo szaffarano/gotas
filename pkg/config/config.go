@@ -1,113 +1,131 @@
 package config
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
-	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
 
-	"github.com/apex/log"
-	"github.com/apex/log/handlers/cli"
 	"github.com/pkg/errors"
-	"gopkg.in/yaml.v3"
 )
 
-type Flags struct {
-	ConfigFile string
-	Quiet      bool
-	Verbose    bool
-	DataDir    string
+type Config struct {
+	path   string
+	values map[string]string
 }
 
-type config struct {
-	Flags
-	Confirmation bool
-	Log          string
-	Pid          struct {
-		File string
-	}
-	Queue struct {
-		Size int
-	}
-	Request struct {
-		Limit int
-	}
-	Root   string
-	Trust  string
-	Client struct {
-		Cert string
-		Key  string
-	}
-	Server struct {
-		BindAddress string
-		Key         string
-		Cert        string
-		Crl         string
-	}
-	Ca struct {
-		Cert string
-	}
+func (c *Config) Set(key, value string) {
+	c.values[key] = value
 }
 
-var conf config
+func (c *Config) SetInt(key string, value int) {
+	c.values[key] = strconv.Itoa(value)
+}
 
-func InitConfig(flags Flags) error {
-	// log configuration, @TODO be aware of `config.Log`
-	log.SetHandler(cli.Default)
-	if flags.Verbose {
-		log.SetLevel(log.DebugLevel)
-	} else if flags.Quiet {
-		log.SetLevel(log.ErrorLevel)
-	} else {
-		log.SetLevel(log.InfoLevel)
-	}
+func (c *Config) SetBool(key string, value bool) {
+	c.values[key] = strconv.FormatBool(value)
+}
 
-	// configuration file lookup:
-	//   1. --config flag
-	//   2. if --config is not defined:
-	//   2.1 if --data is defined, $data/config
-	//   2.2 if --data is not defined, $TASKDATA/config
-	//   3. Otherwise fail
-	if flags.ConfigFile == "" {
-		if flags.DataDir == "" {
-			value, ok := os.LookupEnv("TASKDDATA")
-			if !ok {
-				return fmt.Errorf("you have to define either $TASKDDATA variable or data flag")
-			}
-			flags.DataDir = value
+func (c *Config) Get(key string) string {
+	// @TODO: verify if the key exists?
+	return c.values[key]
+}
+
+func (c *Config) GetBool(key string) (value bool) {
+	// @TODO: verify if the key exists?
+	if str, ok := c.values[key]; ok {
+		if value, err := strconv.ParseBool(str); err == nil {
+			return value
 		}
-		flags.ConfigFile = filepath.Join(flags.DataDir, "config")
 	}
 
-	content, err := ioutil.ReadFile(flags.ConfigFile)
+	return
+}
+
+func (c *Config) GetInt(key string) (value int) {
+	if str, ok := c.values[key]; ok {
+		if value, err := strconv.Atoi(str); err == nil {
+			return value
+		}
+	}
+
+	return
+}
+
+func New(path string) (Config, error) {
+	cfg := Config{
+		path:   path,
+		values: make(map[string]string),
+	}
+
+	if err := Save(cfg); err != nil {
+		return cfg, err
+	}
+
+	return cfg, nil
+}
+
+func Load(path string) (Config, error) {
+	cfg := Config{}
+
+	file, err := os.Open(path)
 	if err != nil {
-		return errors.Wrapf(err, "Error opening config configuration: %s", conf.ConfigFile)
+		return cfg, errors.Wrap(err, "error opening config file")
 	}
-	err = yaml.Unmarshal(content, &conf)
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+
+	values := make(map[string]string)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line != "" && !strings.HasPrefix(line, "#") {
+			splitted := strings.Split(line, "=")
+			if len(splitted) != 2 {
+				return cfg, fmt.Errorf("error parsing configuation file: %q", line)
+			}
+
+			values[strings.TrimRight(splitted[0], " ")] = strings.TrimLeft(splitted[1], " ")
+		}
+	}
+
+	cfg.path = path
+	cfg.values = values
+
+	return cfg, nil
+}
+
+func Save(config Config) error {
+	if config.path == "" {
+		return errors.New("uninitialized config")
+	}
+
+	file, err := os.Create(config.path)
 	if err != nil {
-		return errors.Wrapf(err, "Error reading config configuration: %s", conf.ConfigFile)
+		return errors.Wrap(err, "error opening config file")
+	}
+	defer file.Close()
+
+	// sort the keys to serialize the values deterministically
+	keys := make([]string, 0, len(config.values))
+	for k := range config.values {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var buffer bytes.Buffer
+	for _, k := range keys {
+		fmt.Fprintf(&buffer, "%s = %v\n", k, config.values[k])
 	}
 
-	overrideFromEnvironment()
+	if count, err := file.Write(buffer.Bytes()); err != nil {
+		return errors.Wrap(err, "error saving config file")
+	} else if count != len(buffer.Bytes()) {
+		return errors.Wrap(err, "error saving config file, unexpected bytes saved")
+	}
 
-	conf.ConfigFile = flags.ConfigFile
-	conf.Verbose = flags.Verbose
-	conf.Quiet = flags.Quiet
-	conf.DataDir = flags.DataDir
-
-	log.Debugf("Config file initialized: %s", conf.ConfigFile)
 	return nil
-}
-
-func Get() *config {
-	return &conf
-}
-
-func clearConfig() {
-	conf = config{}
-}
-
-func overrideFromEnvironment() {
-	// @TODO read environment variables to override configurations
-	// corresponds to `--NAME=VALUE   Temporary configuration override` taskd flags
 }

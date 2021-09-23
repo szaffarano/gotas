@@ -6,201 +6,101 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/apex/log"
-	"github.com/apex/log/handlers/memory"
 	"github.com/stretchr/testify/assert"
 )
 
 var (
 	validConfig = `
----
-confirmation: true
-ip:
-  log: on
-log: /tmp/taskd.log
-pid:
-  file: /tmp/taskd.pid
-queue:
-  size: 10
-request:
-  limit: 1048576
-root: /tmp/dummy
-trust: strict
-verbose: false
-client:
-  cert: /path/to/cert
-  key: /path/to/key
-server:
-  bindaddress: host:1234
-  key: /path/to/key
-  cert: /path/to/cert
-  crl: /path/to/crl
-ca:
-  cert: /path/to/ca
-  `
+# comment
+confirmation=1
+ip.log=on
+
+## more comments
+log =    /tmp/taskd.log
+pid.file=/tmp/taskd.pid
+queue.size=10
+request.limit=1048576
+root=/path/to/taskddata
+server=localhost:53589
+trust=strict
+verbose=1
+server.key=/path/to/server.key.pem
+server.cert=/path/to/server.cert.pem
+ca.cert=/path/to/ca.cert.pem`
 	invalidConfig = validConfig + "\n invalid format"
 )
 
 func TestConfig(t *testing.T) {
 	validConfigPath, validConfigDir := mockConfig(t, validConfig)
 	invalidConfigPath, invalidConfigDir := mockConfig(t, invalidConfig)
-	_, nonExistentDataDir := mockConfig(t, "")
+	_, emptyDataDir := mockConfig(t, "")
 
 	defer os.RemoveAll(validConfigDir)
+	defer os.RemoveAll(invalidConfigDir)
 
-	t.Run("configure works with valid --config flag", func(t *testing.T) {
-		defer clearConfig()
-		if err := InitConfig(Flags{ConfigFile: validConfigPath}); err != nil {
-			t.Errorf("Unexpected error: %w", err)
-		}
+	t.Run("load valid config", func(t *testing.T) {
+		cfg, err := Load(validConfigPath)
 
-		conf := Get()
-
-		assertConfig(t, conf)
+		assert.Nil(t, err)
+		assertConfig(t, cfg)
 	})
 
-	t.Run("configure set quiet log level", func(t *testing.T) {
-		defer clearConfig()
+	t.Run("fail with invalid config", func(t *testing.T) {
+		_, err := Load(invalidConfigPath)
 
-		if err := InitConfig(Flags{ConfigFile: validConfigPath, Quiet: true}); err != nil {
-			t.Errorf("Unexpected error: %w", err)
-		}
-
-		conf := Get()
-
-		memoryHandler := memory.New()
-		log.SetHandler(memoryHandler)
-
-		before := len(memoryHandler.Entries)
-
-		assert.True(t, conf.Quiet)
-
-		log.Debug("log something")
-		assert.Equal(t, before, len(memoryHandler.Entries))
-
-		log.Error("log something")
-		assert.Equal(t, before+1, len(memoryHandler.Entries))
+		assert.NotNil(t, err)
 	})
 
-	t.Run("configure set debug log level", func(t *testing.T) {
-		defer clearConfig()
+	t.Run("fail with non existent config", func(t *testing.T) {
+		_, err := Load(filepath.Join("bad", invalidConfigPath))
 
-		if err := InitConfig(Flags{ConfigFile: validConfigPath, Verbose: true}); err != nil {
-			t.Errorf("Unexpected error: %w", err)
-		}
-
-		conf := Get()
-
-		memoryHandler := memory.New()
-		log.SetHandler(memoryHandler)
-
-		before := len(memoryHandler.Entries)
-
-		assert.True(t, conf.Verbose)
-
-		log.Debug("log something")
-		assert.Equal(t, before+1, len(memoryHandler.Entries))
+		assert.NotNil(t, err)
 	})
 
-	t.Run("configure set debug log level even if quiet is set as well", func(t *testing.T) {
-		defer clearConfig()
-
-		if err := InitConfig(Flags{ConfigFile: validConfigPath, Verbose: true, Quiet: true}); err != nil {
-			t.Errorf("Unexpected error: %w", err)
-		}
-
-		conf := Get()
-
-		memoryHandler := memory.New()
-		log.SetHandler(memoryHandler)
-
-		before := len(memoryHandler.Entries)
-
-		assert.True(t, conf.Verbose)
-
-		log.Debug("log something")
-		assert.Equal(t, before+1, len(memoryHandler.Entries))
+	t.Run("init new config", func(t *testing.T) {
+		_, err := New(filepath.Join(emptyDataDir, "some-config"))
+		assert.Nil(t, err)
 	})
 
-	t.Run("configure fails with invalid --config flag", func(t *testing.T) {
-		defer clearConfig()
-		if err := InitConfig(Flags{ConfigFile: invalidConfigPath}); err == nil {
-			t.Error("Error expected")
-		}
+	t.Run("init new config fails with invalid dir", func(t *testing.T) {
+		_, err := New(filepath.Join("some", emptyDataDir, "some-config"))
+		assert.NotNil(t, err)
 	})
 
-	t.Run("configure fails with non-existent --data flag", func(t *testing.T) {
-		defer clearConfig()
-		if err := InitConfig(Flags{DataDir: nonExistentDataDir}); err == nil {
-			t.Error("Error expected")
-		}
+	t.Run("save config", func(t *testing.T) {
+		cfg, err := Load(validConfigPath)
+
+		assert.Nil(t, err)
+
+		err = Save(cfg)
+
+		assert.Nil(t, err)
 	})
 
-	t.Run("configure works with valid --data flag", func(t *testing.T) {
-		defer clearConfig()
-		if err := InitConfig(Flags{DataDir: validConfigDir}); err != nil {
-			t.Errorf("Unexpected error: %w", err)
-		}
-
-		conf := Get()
-
-		assertConfig(t, conf)
-	})
-
-	t.Run("configure fails with invalid --data flag", func(t *testing.T) {
-		defer clearConfig()
-		if err := InitConfig(Flags{DataDir: invalidConfigDir}); err == nil {
-			t.Error("Error expected")
-		}
-	})
-
-	t.Run("configure works with TASKDDATA environment var", func(t *testing.T) {
-		defer clearConfig()
-		if err := os.Setenv("TASKDDATA", validConfigDir); err != nil {
-			t.Errorf("Error setting environment variable: %w", err)
-		}
-		defer func() {
-			if err := os.Unsetenv("TASKDDATA"); err != nil {
-				t.Errorf("Error unsetting environment variable: %w", err)
-			}
-		}()
-
-		if err := InitConfig(Flags{}); err != nil {
-			t.Errorf("Unexpected error: %w", err)
-		}
-
-		conf := Get()
-
-		assertConfig(t, conf)
-	})
-
-	t.Run("configure fails with neither --config nor --data", func(t *testing.T) {
-		defer clearConfig()
-		if err := InitConfig(Flags{}); err == nil {
-			t.Error("Error expected")
-		}
+	t.Run("save config fail if config was not initialized", func(t *testing.T) {
+		cfg := Config{}
+		err := Save(cfg)
+		assert.NotNil(t, err)
 	})
 
 }
 
-func assertConfig(t *testing.T, conf *config) {
+func assertConfig(t *testing.T, conf Config) {
 	t.Helper()
 	assert := assert.New(t)
 
-	assert.Equal(true, conf.Confirmation)
-	assert.Equal("/tmp/taskd.log", conf.Log)
-	assert.Equal("/tmp/taskd.pid", conf.Pid.File)
-	assert.Equal(10, conf.Queue.Size)
-	assert.Equal(1048576, conf.Request.Limit)
-	assert.Equal("/tmp/dummy", conf.Root)
-	assert.Equal("strict", conf.Trust)
-	assert.Equal(false, conf.Verbose)
-	assert.Equal("/path/to/cert", conf.Client.Cert)
-	assert.Equal("/path/to/key", conf.Client.Key)
-	assert.Equal("host:1234", conf.Server.BindAddress)
-	assert.Equal("/path/to/key", conf.Server.Key)
-	assert.Equal("/path/to/key", conf.Server.Key)
-	assert.Equal("/path/to/ca", conf.Ca.Cert)
+	assert.Equal(true, conf.GetBool("confirmation"))
+	assert.Equal("/tmp/taskd.log", conf.Get("log"))
+	assert.Equal("/tmp/taskd.pid", conf.Get("pid.file"))
+	assert.Equal(10, conf.GetInt("queue.size"))
+	assert.Equal(1048576, conf.GetInt("request.limit"))
+	assert.Equal("/path/to/taskddata", conf.Get("root"))
+	assert.Equal("strict", conf.Get("trust"))
+	assert.Equal(true, conf.GetBool("verbose"))
+	assert.Equal("localhost:53589", conf.Get("server"))
+	assert.Equal("/path/to/server.key.pem", conf.Get("server.key"))
+	assert.Equal("/path/to/server.cert.pem", conf.Get("server.cert"))
+	assert.Equal("/path/to/ca.cert.pem", conf.Get("ca.cert"))
 }
 
 func mockConfig(t *testing.T, content string) (string, string) {
