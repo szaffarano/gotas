@@ -1,12 +1,12 @@
 package task
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 
-	"github.com/pkg/errors"
 	"github.com/szaffarano/gotas/pkg/config"
 )
 
@@ -38,32 +38,33 @@ type Repository struct {
 // NewRepository create a brand new repository in the given dataDir
 func NewRepository(dataDir string) (*Repository, error) {
 	if fileInfo, err := os.Stat(dataDir); os.IsNotExist(err) {
-		return nil, fmt.Errorf("%s: does not exist", dataDir)
+		return nil, fmt.Errorf("%v: does not exist", dataDir)
 	} else if os.IsPermission(err) {
-		return nil, fmt.Errorf("%s: permission denied", dataDir)
+		return nil, fmt.Errorf("%v: permission denied", dataDir)
 	} else if err != nil {
-		return nil, errors.Wrap(err, "unknown error")
+		return nil, fmt.Errorf("read dir info %v: %v", dataDir, err)
 	} else if !fileInfo.IsDir() {
-		return nil, fmt.Errorf("%s: is not a directory", dataDir)
+		return nil, fmt.Errorf("%v: directory expected", dataDir)
 	} else if dataDir, err = filepath.Abs(dataDir); err != nil {
-		return nil, errors.Wrap(err, "error while calculate absolute path")
+		return nil, fmt.Errorf("calculate dir absolute path %v: %v", dataDir, err)
 	} else if files, err := ioutil.ReadDir(dataDir); err != nil {
-		return nil, errors.Wrap(err, "error reding data dir")
+		return nil, fmt.Errorf("list dir %v: %v", dataDir, err)
 	} else if len(files) > 0 {
 		return nil, fmt.Errorf("%s: not empty", dataDir)
 	}
 
-	if err := os.Mkdir(filepath.Join(dataDir, "orgs"), 0755); err != nil {
-		return nil, errors.Wrap(err, "error creating initial directory tree")
+	orgPath := filepath.Join(dataDir, "orgs")
+	if err := os.Mkdir(orgPath, 0755); err != nil {
+		return nil, fmt.Errorf("create initial structure %v: %v", orgPath, err)
 	}
 
-	cfg, err := config.New(filepath.Join(dataDir, "config"))
+	configFilePath := filepath.Join(dataDir, "config")
+	cfg, err := config.New(configFilePath)
 	if err != nil {
-		return nil, errors.Wrap(err, "error creating configuration file")
+		return nil, fmt.Errorf("create config file %v: %v", configFilePath, err)
 	}
 
-	// Default values
-
+	// set default values
 	cfg.SetBool(Confirmation, true)
 	cfg.Set(Log, filepath.Join(os.TempDir(), "taskd.log"))
 	cfg.Set(PidFile, filepath.Join(os.TempDir(), "taskd.pid"))
@@ -74,7 +75,7 @@ func NewRepository(dataDir string) (*Repository, error) {
 	cfg.SetBool(Verbose, true)
 
 	if err := config.Save(cfg); err != nil {
-		return nil, errors.Wrap(err, "error saving configuration file")
+		return nil, err
 	}
 
 	return &Repository{Config: cfg}, nil

@@ -2,14 +2,12 @@ package config
 
 import (
 	"bufio"
-	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
-
-	"github.com/pkg/errors"
 )
 
 type Config struct {
@@ -30,26 +28,23 @@ func (c *Config) SetBool(key string, value bool) {
 }
 
 func (c *Config) Get(key string) string {
-	// @TODO: verify if the key exists?
+	// @TODO return error when the key does not exist?
 	return c.values[key]
 }
 
-func (c *Config) GetBool(key string) (value bool) {
-	// @TODO: verify if the key exists?
+func (c *Config) GetInt(key string) (value int) {
+	// @TODO return error when the key does not exist or conversion fails?
 	if str, ok := c.values[key]; ok {
-		if value, err := strconv.ParseBool(str); err == nil {
-			return value
-		}
+		value, _ = strconv.Atoi(str)
 	}
 
 	return
 }
 
-func (c *Config) GetInt(key string) (value int) {
+func (c *Config) GetBool(key string) (value bool) {
+	// @TODO return error when the key does not exist or conversion fails?
 	if str, ok := c.values[key]; ok {
-		if value, err := strconv.Atoi(str); err == nil {
-			return value
-		}
+		value, _ = strconv.ParseBool(str)
 	}
 
 	return
@@ -62,7 +57,7 @@ func New(path string) (Config, error) {
 	}
 
 	if err := Save(cfg); err != nil {
-		return cfg, err
+		return Config{}, err
 	}
 
 	return cfg, nil
@@ -73,19 +68,19 @@ func Load(path string) (Config, error) {
 
 	file, err := os.Open(path)
 	if err != nil {
-		return cfg, errors.Wrap(err, "error opening config file")
+		return cfg, fmt.Errorf("open file %v: %v", path, err)
 	}
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
-
 	values := make(map[string]string)
 	for scanner.Scan() {
 		line := scanner.Text()
-		if line != "" && !strings.HasPrefix(line, "#") {
+		// skip comments and blank lines
+		if strings.Trim(line, " ") != "" && !strings.HasPrefix(line, "#") {
 			splitted := strings.Split(line, "=")
 			if len(splitted) != 2 {
-				return cfg, fmt.Errorf("error parsing configuation file: %q", line)
+				return cfg, fmt.Errorf("parse line: %v", line)
 			}
 
 			values[strings.TrimRight(splitted[0], " ")] = strings.TrimLeft(splitted[1], " ")
@@ -105,27 +100,29 @@ func Save(config Config) error {
 
 	file, err := os.Create(config.path)
 	if err != nil {
-		return errors.Wrap(err, "error opening config file")
+		return fmt.Errorf("open file %v: %v", config.path, err)
 	}
 	defer file.Close()
 
 	// sort the keys to serialize the values deterministically
-	keys := make([]string, 0, len(config.values))
-	for k := range config.values {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	var buffer bytes.Buffer
-	for _, k := range keys {
-		fmt.Fprintf(&buffer, "%s = %v\n", k, config.values[k])
+	var builder strings.Builder
+	for _, k := range sortKeys(config.values) {
+		fmt.Fprintf(&builder, "%s = %v\n", k, config.values[k])
 	}
 
-	if count, err := file.Write(buffer.Bytes()); err != nil {
-		return errors.Wrap(err, "error saving config file")
-	} else if count != len(buffer.Bytes()) {
-		return errors.Wrap(err, "error saving config file, unexpected bytes saved")
+	buffer := []byte(builder.String())
+	if _, err := file.Write(buffer); err != nil {
+		return fmt.Errorf("save file %v: %v", config.path, err)
 	}
 
 	return nil
+}
+
+func sortKeys(values map[string]string) []string {
+	keys := make([]string, 0, len(values))
+	for k := range values {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
