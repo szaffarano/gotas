@@ -33,6 +33,11 @@ const (
 	CaCert       = "ca.cert"
 )
 
+const (
+	orgsFolder  = "orgs"
+	usersFolder = "users"
+)
+
 // Repository defines an API with the task server operations, orgs and users ABM, initialization, etc.
 type Repository struct {
 	Config config.Config
@@ -57,12 +62,12 @@ func (r *Repository) NewOrg(orgName string) (*Organization, error) {
 		}
 	}
 
-	newOrgPath := filepath.Join(r.Config.Get(Root), "orgs", orgName)
+	newOrgPath := filepath.Join(r.Config.Get(Root), orgsFolder, orgName)
 	if err := os.Mkdir(newOrgPath, 0775); err != nil {
-		return nil, fmt.Errorf("create new org: %v", err)
+		return nil, fmt.Errorf("creating new org: %v", err)
 	}
-	if err := os.Mkdir(filepath.Join(newOrgPath, "users"), 0775); err != nil {
-		return nil, fmt.Errorf("create users dir under org: %v", err)
+	if err := os.Mkdir(filepath.Join(newOrgPath, usersFolder), 0775); err != nil {
+		return nil, fmt.Errorf("creating users dir under org: %v", err)
 	}
 
 	newOrg := Organization{Name: orgName}
@@ -73,7 +78,7 @@ func (r *Repository) NewOrg(orgName string) (*Organization, error) {
 
 func (r *Repository) GetOrg(orgName string) (*Organization, error) {
 	var users []User
-	root := filepath.Join(r.Config.Get(Root), "orgs", orgName, "users")
+	root := filepath.Join(r.Config.Get(Root), orgsFolder, orgName, usersFolder)
 
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -81,7 +86,7 @@ func (r *Repository) GetOrg(orgName string) (*Organization, error) {
 		}
 
 		if d.IsDir() {
-			if d.Name() == "users" {
+			if d.Name() == usersFolder {
 				return nil
 			}
 			userConfigPath := filepath.Join(path, "config")
@@ -91,7 +96,7 @@ func (r *Repository) GetOrg(orgName string) (*Organization, error) {
 					Name: userConfig.Get("user"),
 				})
 			} else {
-				log.Warnf("Ignoring user %q: %v", path, err)
+				log.Warnf("Ignoring user %q: %v", d.Name(), err)
 				return fs.SkipDir
 			}
 			return fs.SkipDir
@@ -122,7 +127,7 @@ func (r *Repository) AddUser(orgName string, userName string) (*User, error) {
 	}
 
 	key := uuid.New().String()
-	userPath := filepath.Join(r.Config.Get(Root), "orgs", org.Name, "users", key)
+	userPath := filepath.Join(r.Config.Get(Root), orgsFolder, org.Name, usersFolder, key)
 	if err := os.Mkdir(userPath, 0755); err != nil {
 		return nil, fmt.Errorf("creating user home: %v", err)
 	}
@@ -161,7 +166,7 @@ func NewRepository(dataDir string) (*Repository, error) {
 		return nil, fmt.Errorf("%s: not empty", dataDir)
 	}
 
-	orgPath := filepath.Join(dataDir, "orgs")
+	orgPath := filepath.Join(dataDir, orgsFolder)
 	if err := os.Mkdir(orgPath, 0755); err != nil {
 		return nil, fmt.Errorf("create initial structure %v: %v", orgPath, err)
 	}
@@ -169,7 +174,7 @@ func NewRepository(dataDir string) (*Repository, error) {
 	configFilePath := filepath.Join(dataDir, "config")
 	cfg, err := config.New(configFilePath)
 	if err != nil {
-		return nil, fmt.Errorf("create config file %v: %v", configFilePath, err)
+		return nil, err
 	}
 
 	// set default values
@@ -193,10 +198,10 @@ func OpenRepository(dataDir string) (*Repository, error) {
 	configFilePath := filepath.Join(dataDir, "config")
 	cfg, err := config.Load(configFilePath)
 	if err != nil {
-		return nil, fmt.Errorf("reading config file %v: %v", configFilePath, err)
+		return nil, err
 	}
 
-	orgsRoot := filepath.Join(dataDir, "orgs")
+	orgsRoot := filepath.Join(dataDir, orgsFolder)
 	var orgsToAdd []string
 	err = filepath.WalkDir(orgsRoot, func(_ string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -204,7 +209,7 @@ func OpenRepository(dataDir string) (*Repository, error) {
 		}
 
 		if d.IsDir() {
-			if d.Name() == "orgs" {
+			if d.Name() == orgsFolder {
 				return nil
 			}
 			orgsToAdd = append(orgsToAdd, d.Name())

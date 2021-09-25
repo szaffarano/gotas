@@ -141,6 +141,7 @@ func TestNewOrganization(t *testing.T) {
 	assert.Nil(t, err)
 
 	t.Run("new organization works with valid data dir", func(t *testing.T) {
+		before := len(repo.orgs)
 		org, err := repo.NewOrg("delete-me")
 		assert.Nil(t, err)
 		defer func() {
@@ -150,6 +151,7 @@ func TestNewOrganization(t *testing.T) {
 		}()
 
 		assert.Equal(t, "delete-me", org.Name)
+		assert.Equal(t, before+1, len(repo.orgs))
 	})
 
 	t.Run("new organization fails if already exists", func(t *testing.T) {
@@ -184,6 +186,11 @@ func TestNewUser(t *testing.T) {
 
 	t.Run("add user fails with infalid organization", func(t *testing.T) {
 		_, err := repo.AddUser("invalid-org", "user_one")
+		assert.NotNil(t, err)
+	})
+
+	t.Run("add user fails if user already exists", func(t *testing.T) {
+		_, err := repo.AddUser("Public", "noeh")
 		assert.NotNil(t, err)
 	})
 }
