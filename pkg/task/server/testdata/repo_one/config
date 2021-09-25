@@ -1,0 +1,13 @@
+confirmation=1
+ip.log=on
+log=/tmp/taskd.log
+pid.file=/tmp/taskd.pid
+queue.size=10
+request.limit=1048576
+root=testdata/repo_one
+server=localhost:53589
+trust=strict
+verbose=1
+server.key=testdata/repo_one/certs/server.key.pem
+server.cert=testdata/repo_one/certs/server.cert.pem
+ca.cert=testdata/repo_one/certs/ca.cert.pem
