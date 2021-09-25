@@ -9,6 +9,10 @@ import (
 
 const (
 	taskdDataVariableName = "TASKDDATA"
+
+	dataFlag    = "data"
+	quietFlag   = "quit"
+	verboseFlag = "verbose"
 )
 
 type flags struct {
@@ -43,15 +47,15 @@ programming language`,
 
 	rootCmd.
 		PersistentFlags().
-		BoolVarP(&flags.quiet, "quiet", "q", false, "Turns off verbose output")
+		BoolVarP(&flags.quiet, quietFlag, "q", false, "Turns off verbose output")
 
 	rootCmd.
 		PersistentFlags().
-		BoolVarP(&flags.verbose, "verbose", "v", false, "Generates debugging diagnostics")
+		BoolVarP(&flags.verbose, verboseFlag, "v", false, "Generates debugging diagnostics")
 
 	rootCmd.
 		PersistentFlags().
-		StringVar(&flags.taskData, "data", "", "Data directory (default is $HOME/.gotas")
+		StringVar(&flags.taskData, dataFlag, "", "Data directory (default is $HOME/.gotas")
 
 	rootCmd.AddCommand(addCmd())
 	rootCmd.AddCommand(configCmd())

@@ -1,4 +1,4 @@
-package task
+package server
 
 import (
 	"testing"

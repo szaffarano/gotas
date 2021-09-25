@@ -1,4 +1,4 @@
-package task
+package message
 
 import (
 	"encoding/binary"

@@ -1,0 +1,11 @@
+confirmation=1
+extensions=/usr/local/libexec/taskd
+ip.log=on
+log=/tmp/taskd.log
+pid.file=/tmp/taskd.pid
+queue.size=10
+request.limit=1048576
+root=testdata/repo_one
+server=
+trust=strict
+verbose=1
