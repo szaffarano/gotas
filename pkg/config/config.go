@@ -65,7 +65,6 @@ func New(path string) (Config, error) {
 
 func Load(path string) (Config, error) {
 	cfg := Config{}
-
 	file, err := os.Open(path)
 	if err != nil {
 		return cfg, fmt.Errorf("open file %v: %v", path, err)

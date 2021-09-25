@@ -1,4 +1,4 @@
-package task
+package server
 
 // Server is the taskd server
 type Server interface {
