@@ -22,7 +22,9 @@ useѕ to uniquely identify a user, because <user-name> need not be unique.`,
 		Short:   "Creates a new organization",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 1 {
-				cmd.Usage()
+				if err := cmd.Usage(); err != nil {
+					return nil
+				}
 				return fmt.Errorf("organization name expected")
 			}
 			orgName := args[0]
@@ -51,7 +53,9 @@ useѕ to uniquely identify a user, because <user-name> need not be unique.`,
 		Short:   "Creates a new user",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 2 {
-				cmd.Usage()
+				if err := cmd.Usage(); err != nil {
+					return nil
+				}
 				return fmt.Errorf("organization and user name expected")
 			}
 			orgName := args[0]
