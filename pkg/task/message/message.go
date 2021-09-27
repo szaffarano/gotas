@@ -22,10 +22,10 @@ func NewMessage(raw string) (Message, error) {
 	}
 
 	parts := strings.Split(raw, SEP)
-	if len(parts) == 2 {
-		message.Payload = parts[1]
-	} else if len(parts) == 1 {
+	if len(parts) == 1 {
 		return message, errors.New("Message separator not found")
+	} else if len(parts) >= 2 {
+		message.Payload = parts[1]
 	}
 
 	headers := strings.Split(parts[0], "\n")
