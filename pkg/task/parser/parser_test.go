@@ -209,3 +209,29 @@ func TestGetUntil(t *testing.T) {
 
 	})
 }
+
+func TestJsonDecode(t *testing.T) {
+	cases := []struct {
+		value    string
+		expected string
+	}{
+		{`1\"2`, "1\\\"2"},
+		{`1\b2`, "1\\b2"},
+		{`1\f2`, "1\\f2"},
+		{`1\n2`, "1\\n2"},
+		{`1\r2`, "1\\r2"},
+		{`1\t2`, "1\\t2"},
+		{`1\\2`, "1\\\\2"},
+		{`one\\`, "one\\\\"},
+		{"1\x02", "1\x02"},
+		{"1€2", "1\u20ac2"},
+		{"&open;hello&close;", "[hello]"},
+	}
+
+	for _, c := range cases {
+		t.Run(fmt.Sprintf("decoding %v", c.value), func(t *testing.T) {
+			assert.Equal(t, c.expected, Decode(c.value))
+		})
+	}
+
+}

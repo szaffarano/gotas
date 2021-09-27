@@ -6,6 +6,8 @@ import (
 	"unicode/utf8"
 )
 
+// The logic was taken from the original taskserver code
+// https://github.com/GothenburgBitFactory/libshared/blob/1fa5dcbf53a280857e35436aef6beb6a37266e33/src/Pig.cpp
 type Pig struct {
 	value string
 	idx   int
@@ -135,4 +137,13 @@ func (p *Pig) GetRemainder() string {
 	p.idx += len(result)
 
 	return result
+}
+
+func Decode(value string) string {
+	if !strings.Contains(value, "&") {
+		return value
+	}
+
+	value = strings.ReplaceAll(value, "&open;", "[")
+	return strings.ReplaceAll(value, "&close;", "]")
 }
