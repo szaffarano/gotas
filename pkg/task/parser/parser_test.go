@@ -14,8 +14,6 @@ func (c piggyWriter) Write(buf []byte) (int, error) {
 	return 0, fmt.Errorf("bum!")
 }
 
-// Gets quote content:      "foobar" -> foobar      (for c = '"')
-// Handles escaped quotes:  "foo\"bar" -> foo\"bar  (for c = '"')
 func TestGetQuoted(t *testing.T) {
 	cases := []struct {
 		title    string
@@ -24,17 +22,17 @@ func TestGetQuoted(t *testing.T) {
 		expected string
 		success  bool
 	}{
-		{"get quoted for simple string", `"foobar"`, '"', "foobar", true},
-		{"get quoted for for unquoted string", `foobar`, '"', "", false},
-		{"get quoted for for empty quoted string", `""`, '"', "", true},
-		{"get quoted for for unbalanced quoted string", `"foo`, '"', "", false},
-		{"get quoted for double escaped string", `"foo\\"bar`, '"', `foo\\`, true},
-		{"get quoted for multiple escaped", "\"one\\\\\"", '"', "one\\\\", true},
-		{"get quoted for escaped string", `"foo\"bar"`, '"', `foo\"bar`, true},
-		{"get quoted for double escaped string", `"foo\a\b\"bar"`, '"', `foo\a\b\"bar`, true},
-		{"get quoted with alternative utf8 rune", `日foobar日`, '日', `foobar`, true},
-		{"get quoted with alternative utf8 rune and escaped", `日foo\日bar日`, '日', `foo\日bar`, true},
-		{"get quoted with invalid utf8 rune should fail", "'foobar\xbd\xb2'", '\'', "", false},
+		{"GetQuoted for simple string", `"foobar"`, '"', "foobar", true},
+		{"GetQuoted for for unquoted string", `foobar`, '"', "", false},
+		{"GetQuoted for for empty quoted string", `""`, '"', "", true},
+		{"GetQuoted for for unbalanced quoted string", `"foo`, '"', "", false},
+		{"GetQuoted for double escaped string", `"foo\\"bar`, '"', `foo\\`, true},
+		{"GetQuoted for multiple escaped", "\"one\\\\\"", '"', "one\\\\", true},
+		{"GetQuoted for escaped string", `"foo\"bar"`, '"', `foo\"bar`, true},
+		{"GetQuoted for double escaped string", `"foo\a\b\"bar"`, '"', `foo\a\b\"bar`, true},
+		{"GetQuoted with alternative UTF-8 rune", `日foobar日`, '日', `foobar`, true},
+		{"GetQuoted with alternative UTF-8 rune and escaped", `日foo\日bar日`, '日', `foo\日bar`, true},
+		{"GetQuoted with invalid UTF-8 rune should fail", "'foobar\xbd\xb2'", '\'', "", false},
 	}
 
 	for _, c := range cases {
@@ -77,9 +75,9 @@ func TestGetRemainder(t *testing.T) {
 		skip     rune
 		expected string
 	}{
-		{"reminder works in the middle of a string", "123", '1', "23"},
-		{"reminder works form begin of a string", "123", 0, "123"},
-		{"reminder fails with unvalid utf8 string", "\xbd\xb2\x3d\xbc\x20\xe2\x8c\x98", 0, ""},
+		{"GetRemainder works in the middle of a string", "123", '1', "23"},
+		{"GetRemainder works from the beginning of a string", "123", 0, "123"},
+		{"GetRemainder fails with invalid UTF-8 string", "\xbd\xb2\x3d\xbc\x20\xe2\x8c\x98", 0, ""},
 	}
 
 	for _, c := range cases {
@@ -127,9 +125,9 @@ func TestEos(t *testing.T) {
 		expected bool
 	}{
 		{"not eos in the middle of a string", "123", '1', false},
-		{"not eos in the begining of a string", "123", 0, false},
+		{"not eos in the beginning of a string", "123", 0, false},
 		{"eos at the end of a string", "1", '1', true},
-		{"not eos in invalid utf8 string", "\xbd\xb2\x3d\xbc\x20\xe2\x8c\x98", 0, false},
+		{"not eos in invalid UTF-8 string", "\xbd\xb2\x3d\xbc\x20\xe2\x8c\x98", 0, false},
 	}
 
 	for _, c := range cases {
@@ -156,7 +154,7 @@ func TestGetUntil(t *testing.T) {
 		success  bool
 	}{
 		{"skip until de middle of the string", "123", '2', "1", true},
-		{"skip until unexistent rune", "123", '4', "123", true},
+		{"skip until inexistent rune", "123", '4', "123", true},
 		{"skip duplicated rune", "hello world .", ' ', "hello", true},
 		{"fails with invalid rune at the beginning", "\xbd\xb2hello world", ' ', "", false},
 	}
@@ -173,25 +171,28 @@ func TestGetUntil(t *testing.T) {
 		})
 	}
 
-	t.Run("fails with invalid writer", func(t *testing.T) {
-		p := NewPig("hello world")
-		w := new(piggyWriter)
+	cases = []struct {
+		title    string
+		value    string
+		until    rune
+		expected string
+		success  bool
+	}{
+		{"fails with invalid writer", "hello world", ' ', "", false},
+		{"fails with invalid writer at the end", "hello world", 'x', "", false},
+	}
+	for _, c := range cases {
+		t.Run(c.title, func(t *testing.T) {
+			p := NewPig("hello world")
+			w := new(piggyWriter)
 
-		result := p.GetUntil(' ', w)
+			result := p.GetUntil(c.until, w)
 
-		assert.False(t, result)
-	})
+			assert.False(t, result)
+		})
+	}
 
-	t.Run("fails with invalid writer at the end", func(t *testing.T) {
-		p := NewPig("hello world")
-		w := new(piggyWriter)
-
-		result := p.GetUntil('x', w)
-
-		assert.False(t, result)
-	})
-
-	t.Run("new case", func(t *testing.T) {
+	t.Run("successive GetUntil requests", func(t *testing.T) {
 		p := NewPig("abc:def:ghi")
 		w := new(strings.Builder)
 
@@ -207,6 +208,18 @@ func TestGetUntil(t *testing.T) {
 		assert.True(t, result)
 		assert.Equal(t, "def", w.String())
 
+		p.Skip(':')
+
+		w = new(strings.Builder)
+		result = p.GetUntil(':', w)
+		assert.True(t, result)
+		assert.Equal(t, "ghi", w.String())
+
+		p.Skip(':')
+
+		w = new(strings.Builder)
+		result = p.GetUntil(':', w)
+		assert.False(t, result)
 	})
 }
 
