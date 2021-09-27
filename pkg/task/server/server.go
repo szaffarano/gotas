@@ -81,8 +81,20 @@ func NewServer(cfg config.Config) (Server, error) {
 
 	tlsCfg := &tls.Config{
 		Certificates: []tls.Certificate{cert},
-		ClientAuth:   tls.RequireAndVerifyClientCert,
 		ClientCAs:    roots,
+	}
+	switch trust := cfg.Get(repo.Trust); trust {
+	case "strict":
+		tlsCfg.ClientAuth = tls.RequireAndVerifyClientCert
+	case "ignore hostname":
+		log.Warnf("Bypassing hostname verification")
+		tlsCfg.InsecureSkipVerify = true
+	case "allow all":
+		log.Errorf("Bypassing any client certificate validation")
+		tlsCfg.ClientAuth = tls.RequireAnyClientCert
+	default:
+		log.Warnf("Invalid trust value %q, falling back to 'strict'")
+		tlsCfg.ClientAuth = tls.RequireAndVerifyClientCert
 	}
 
 	listener, err := tls.Listen("tcp", cfg.Get(repo.BindAddress), tlsCfg)
