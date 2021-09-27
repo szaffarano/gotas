@@ -1,6 +1,7 @@
 package task
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -56,7 +57,19 @@ func TestNewTask(t *testing.T) {
 		},
 		{
 			"format FF3 fails",
-			`a2b5f6fc-7285-75cc-90b9-abf624a8457e - [] [entry:1632687645 priority: project:] [] Some task`,
+			`a2b5f6fc-7285-75cc-90b9-abf624a8457e - [] [entry:1632687645 priority: project:] [1632722433:"A small annotation"] Some task`,
+			false,
+			nil,
+		},
+		{
+			"format FF2 fails",
+			`37beef88-c3f8-a1e9-1f49-0a4856f7af7d - [] [entry:1632721666 priority: project:] annotate A small annotation`,
+			false,
+			nil,
+		},
+		{
+			"format FF1 fails",
+			`X [someTag] [att:value] description`,
 			false,
 			nil,
 		},
@@ -74,6 +87,38 @@ func TestNewTask(t *testing.T) {
 			} else {
 				a.NotNil(err)
 			}
+		})
+	}
+}
+
+func TestDetermineVersion(t *testing.T) {
+	cases := []struct {
+		raw     string
+		version int
+	}{
+		{
+			`X [someTag] [att:value] description`,
+			1,
+		},
+		{
+			`37beef88-c3f8-a1e9-1f49-0a4856f7af7d - [] [entry:1632721666 priority: project:] annotate A small annotation`,
+			2,
+		},
+		{
+			`a2b5f6fc-7285-75cc-90b9-abf624a8457e - [] [entry:1632687645 priority: project:] [1632722433:"A small annotation"] Some task`,
+			3,
+		},
+		{
+			`[description:"Some task" entry:"1632659723" status:"pending" uuid:"6b5af5e0-466a-4355-99db-719b19a5dcd3"]`,
+			4,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(fmt.Sprintf("version %d", c.version), func(t *testing.T) {
+			actual := determineVersion(c.raw)
+
+			assert.Equal(t, c.version, actual)
 		})
 	}
 }
