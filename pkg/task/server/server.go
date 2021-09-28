@@ -79,11 +79,22 @@ func NewServer(cfg config.Config) (Server, error) {
 		return nil, fmt.Errorf("reading certificate file: %v", err)
 	}
 
+	// base config from https://ssl-config.mozilla.org/ for "intermediate" systems
 	tlsCfg := &tls.Config{
+		MinVersion:   tls.VersionTLS12,
 		Certificates: []tls.Certificate{cert},
-		ClientAuth:   tls.RequireAndVerifyClientCert,
 		ClientCAs:    roots,
+		CipherSuites: []uint16{
+			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
+			tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
+		},
+		ClientAuth: tls.RequireAndVerifyClientCert,
 	}
+	// @TODO implement `trust` option
 
 	listener, err := tls.Listen("tcp", cfg.Get(repo.BindAddress), tlsCfg)
 	if err != nil {
