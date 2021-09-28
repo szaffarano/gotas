@@ -16,14 +16,8 @@ import (
 )
 
 func TestServer(t *testing.T) {
-
 	t.Run("server with valid config", func(t *testing.T) {
-		bindAddress := fmt.Sprintf("localhost:%d", nextFreePort(t, 1025))
-
-		serverCfg := newTaskdConfig(t, "repo_one", repo.BindAddress, bindAddress)
-		clientCfg := newTLSConfig(t, "client.pem", "client.key", "ca.pem")
-
-		server, client, cleanup := newTaskdClientServer(t, serverCfg, clientCfg)
+		server, client, cleanup := newTaskdClientServer(t, "server.conf", "client.conf")
 		defer cleanup()
 
 		ch := make(chan []byte)
@@ -41,7 +35,7 @@ func TestServer(t *testing.T) {
 		}()
 
 		if _, err := client.Write([]byte("hello")); err != nil {
-			assert.Fail(t, "Error receiving next client")
+			assert.FailNowf(t, "error writing to the server: %v", err.Error())
 		}
 
 		timeout := time.After(1 * time.Second)
@@ -59,14 +53,10 @@ func TestServer(t *testing.T) {
 			repo      string
 			extraConf []string
 		}{
-			{"invalid key cert", "repo_invalid_config", make([]string, 0)},
-			{"malformed ca cert", "repo_one", []string{
-				repo.CaCert, filepath.Join("testdata",
-					"repo_invalid_config",
-					"certs",
-					"ca.cert-invalid.pem")}},
-			{"invalid ca cert", "repo_one", []string{repo.CaCert, "invalid"}},
-			{"invalid invalid bind address", "repo_one", []string{repo.BindAddress, "1:2:3:localhost"}},
+			{"invalid key cert", "server.invalid-key.conf", []string{}},
+			{"malformed ca cert", "server.malformed-ca.conf", []string{}},
+			{"invalid ca cert", "server.invalid-ca.conf", []string{}},
+			{"invalid invalid bind address", "server.conf", []string{repo.BindAddress, "1:2:3:localhost"}},
 		}
 
 		for _, c := range cases {
@@ -85,10 +75,15 @@ func TestServer(t *testing.T) {
 	})
 }
 
-func newTaskdClientServer(t *testing.T, srvConfig config.Config, clConfig *tls.Config) (client net.Conn, server Client, cleanup func()) {
+func newTaskdClientServer(t *testing.T, srvCfgFile, clCfgFile string) (net.Conn, TaskdConn, func()) {
 	t.Helper()
 
 	const ack = "ack"
+	var client net.Conn
+	var server TaskdConn
+
+	srvConfig := newTaskdConfig(t, srvCfgFile, repo.BindAddress, fmt.Sprintf("localhost:%d", nextFreePort(t, 1025)))
+	clientCfg := newTLSConfig(t, clCfgFile)
 
 	ready := make(chan []byte)
 	srv, err := NewServer(srvConfig)
@@ -112,7 +107,7 @@ func newTaskdClientServer(t *testing.T, srvConfig config.Config, clConfig *tls.C
 		ready <- buf[:size]
 	}()
 
-	client, err = tls.Dial("tcp", srvConfig.Get(repo.BindAddress), clConfig)
+	client, err = tls.Dial("tcp", srvConfig.Get(repo.BindAddress), clientCfg)
 	if err != nil {
 		assert.FailNow(t, err.Error())
 	}
@@ -131,6 +126,7 @@ func newTaskdClientServer(t *testing.T, srvConfig config.Config, clConfig *tls.C
 		assert.NoError(t, client.Close())
 	}
 }
+
 func nextFreePort(t *testing.T, initial int) int {
 	t.Helper()
 
@@ -144,16 +140,20 @@ func nextFreePort(t *testing.T, initial int) int {
 	return 0
 }
 
-func newTLSConfig(t *testing.T, certFile, keyFile, caFile string) *tls.Config {
+func newTLSConfig(t *testing.T, conf string) *tls.Config {
 	t.Helper()
 
-	base := filepath.Join("testdata", "repo_one", "certs")
-	ca, err := ioutil.ReadFile(filepath.Join(base, caFile))
+	cfg, err := config.Load(filepath.Join("testdata", conf))
 	if err != nil {
 		assert.FailNow(t, err.Error())
 	}
 
-	cert, err := tls.LoadX509KeyPair(filepath.Join(base, certFile), filepath.Join(base, keyFile))
+	ca, err := ioutil.ReadFile(cfg.Get("ca"))
+	if err != nil {
+		assert.FailNow(t, err.Error())
+	}
+
+	cert, err := tls.LoadX509KeyPair(cfg.Get("cert"), cfg.Get("key"))
 	if err != nil {
 		assert.FailNow(t, err.Error())
 	}
@@ -167,11 +167,10 @@ func newTLSConfig(t *testing.T, certFile, keyFile, caFile string) *tls.Config {
 	}
 }
 
-func newTaskdConfig(t *testing.T, repo string, extra ...interface{}) config.Config {
+func newTaskdConfig(t *testing.T, conf string, extra ...interface{}) config.Config {
 	t.Helper()
 
-	path := filepath.Join("testdata", repo, "config")
-	cfg, err := config.Load(path)
+	cfg, err := config.Load(filepath.Join("testdata", conf))
 	if err != nil {
 		assert.FailNowf(t, "Error reading configuration: %s", err.Error())
 	}

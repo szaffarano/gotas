@@ -55,7 +55,7 @@ func serverCmd() *cobra.Command {
 	return &serverCmd
 }
 
-func process(client server.Client, _ config.Config) {
+func process(client server.TaskdConn, _ config.Config) {
 	defer client.Close()
 
 	msg, err := receiveMessage(client)

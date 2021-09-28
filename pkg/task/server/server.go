@@ -15,14 +15,14 @@ import (
 // Server is the taskd server
 type Server interface {
 	// NextClient returns a client
-	NextClient() (Client, error)
+	NextClient() (TaskdConn, error)
 
 	// Close finishes the client connection
 	Close() error
 }
 
-// Client represents a Taskd client connected to taskd server
-type Client interface {
+// TaskdConn represents a Taskd client connected to taskd server
+type TaskdConn interface {
 	Read(buf []byte) (int, error)
 	Write(buf []byte) (int, error)
 	Close() error
@@ -52,7 +52,7 @@ type server struct {
 	listener net.Listener
 }
 
-func (s *server) NextClient() (Client, error) {
+func (s *server) NextClient() (TaskdConn, error) {
 	conn, err := s.listener.Accept()
 	if err != nil {
 		return nil, err
