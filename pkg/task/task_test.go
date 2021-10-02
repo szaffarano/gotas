@@ -2,6 +2,8 @@ package task
 
 import (
 	"fmt"
+	"io/ioutil"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -39,10 +41,28 @@ func TestNewTask(t *testing.T) {
 		},
 		{
 			"json format fails (not implemented)",
-			`{"description":"Test 2","end":"20210925T160632Z","entry":"20210925T160542Z","modified":"20210925T160632Z","status":"completed","uuid":"123"}`,
+			readFile(t, "task.json"),
+			true,
+			map[string]string{
+				"customField":           "value for custom field",
+				"entry":                 "1633003050",
+				"modified":              "1633179167",
+				"uuid":                  "b04d7885-31ff-4992-b4fe-5cde1b41ca54",
+				"status":                "pending",
+				"tags":                  "tag1,tag2",
+				"depends":               "b8a25aa7-fea9-4abf-a487-02eacd85bd58",
+				"description":           "New task",
+				"annotation_1633003241": "A small annotation",
+				"annotation_1633003244": "A small annotation 2",
+			},
+		},
+		{
+			"invalid json fails",
+			readFile(t, "invalid-task.json"),
 			false,
 			nil,
 		},
+
 		{
 			"empty string fails",
 			"",
@@ -121,4 +141,12 @@ func TestDetermineVersion(t *testing.T) {
 			assert.Equal(t, c.version, actual)
 		})
 	}
+}
+
+func readFile(t *testing.T, path string) string {
+	content, err := ioutil.ReadFile(filepath.Join("testdata", path))
+	if err != nil {
+		assert.FailNowf(t, "error reading %v: %v", path, err.Error())
+	}
+	return string(content)
 }

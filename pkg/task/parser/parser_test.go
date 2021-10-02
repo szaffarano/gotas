@@ -117,6 +117,195 @@ func TestSkip(t *testing.T) {
 	}
 }
 
+func TestSkipN(t *testing.T) {
+	cases := []struct {
+		value    string
+		skip     int
+		expected bool
+	}{
+		{"123", 0, true},
+		{"123", 1, true},
+		{"123", 2, true},
+		{"123", 3, true},
+		{"123", 4, false},
+		{"123", 10, false},
+	}
+
+	for _, c := range cases {
+		t.Run(fmt.Sprintf("skip %d in %q", c.skip, c.value), func(t *testing.T) {
+			p := NewPig(c.value)
+
+			result := p.SkipN(c.skip)
+			assert.Equal(t, c.expected, result)
+			if c.expected {
+				assert.Equal(t, c.skip, p.Cursor())
+			} else {
+				assert.Equal(t, 0, p.Cursor())
+			}
+		})
+	}
+}
+
+func TestGetValue(t *testing.T) {
+	p := NewPig("12345")
+
+	assert.Equal(t, "12345", p.GetValue())
+
+	p.GetUntil('3', new(strings.Builder))
+
+	assert.Equal(t, "345", p.GetValue())
+
+	p.GetDigits()
+
+	assert.Equal(t, "", p.GetValue())
+}
+
+func TestPeek(t *testing.T) {
+	p := NewPig("12345")
+
+	assert.Equal(t, '1', p.Peek())
+
+	p.GetUntil('3', new(strings.Builder))
+
+	assert.Equal(t, '3', p.Peek())
+}
+
+func TestGetDigit(t *testing.T) {
+	cases := []struct {
+		value    string
+		expected int
+		fails    bool
+	}{
+		{"123", 1, false},
+		{"1a23", 1, false},
+		{"a123", -1, true},
+	}
+
+	for _, c := range cases {
+		p := NewPig(c.value)
+
+		actual, error := p.GetDigit()
+		if c.fails {
+			assert.NotNil(t, error)
+		} else {
+			assert.Equal(t, actual, c.expected)
+		}
+	}
+}
+
+func TestGetDigit2(t *testing.T) {
+	cases := []struct {
+		value    string
+		expected int
+		fails    bool
+	}{
+		{"123", 12, false},
+		{"1a23", -11, true},
+		{"a123", -1, true},
+	}
+
+	for _, c := range cases {
+		p := NewPig(c.value)
+
+		actual, error := p.GetDigit2()
+		if c.fails {
+			assert.NotNil(t, error)
+		} else {
+			assert.Equal(t, actual, c.expected)
+		}
+	}
+}
+
+func TestGetDigit3(t *testing.T) {
+	cases := []struct {
+		value    string
+		expected int
+		fails    bool
+	}{
+		{"12345", 123, false},
+		{"1a23", -1, true},
+		{"a123", -1, true},
+	}
+
+	for _, c := range cases {
+		p := NewPig(c.value)
+
+		actual, error := p.GetDigit3()
+		if c.fails {
+			assert.NotNil(t, error)
+		} else {
+			assert.Equal(t, actual, c.expected)
+		}
+	}
+}
+
+func TestGetDigit4(t *testing.T) {
+	cases := []struct {
+		value    string
+		expected int
+		fails    bool
+	}{
+		{"12345", 1234, false},
+		{"1a23", -1, true},
+		{"a123", -1, true},
+	}
+
+	for _, c := range cases {
+		p := NewPig(c.value)
+
+		actual, error := p.GetDigit4()
+		if c.fails {
+			assert.NotNil(t, error)
+		} else {
+			assert.Equal(t, actual, c.expected)
+		}
+	}
+}
+func TestGetDigits(t *testing.T) {
+	cases := []struct {
+		value    string
+		expected int
+		fails    bool
+	}{
+		{"123", 123, false},
+		{"1a23", 1, false},
+		{"a123", 0, true},
+	}
+
+	for _, c := range cases {
+		p := NewPig(c.value)
+
+		actual, error := p.GetDigits()
+		if c.fails {
+			assert.NotNil(t, error)
+		} else {
+			assert.Equal(t, actual, c.expected)
+		}
+	}
+}
+
+func TestRestoreTo(t *testing.T) {
+	cases := []struct {
+		value     string
+		moveTo    int
+		restoreTo int
+		expected  int
+	}{
+		{"123", 2, 1, 1},
+		{"123", 3, 1, 1},
+		{"123", 1, -1, 1},
+	}
+
+	for _, c := range cases {
+		p := NewPig(c.value)
+
+		if assert.True(t, p.SkipN(c.moveTo)) {
+			assert.Equal(t, c.expected, p.RestoreTo(c.restoreTo))
+			assert.Equal(t, c.expected, p.Cursor())
+		}
+	}
+}
+
 func TestEos(t *testing.T) {
 	cases := []struct {
 		title    string

@@ -1,15 +1,20 @@
 package cmd
 
 import (
+	"bufio"
 	"encoding/binary"
 	"fmt"
 	"io"
 	"path/filepath"
+	"strings"
 
 	"github.com/apex/log"
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"github.com/szaffarano/gotas/pkg/config"
+	"github.com/szaffarano/gotas/pkg/task"
 	"github.com/szaffarano/gotas/pkg/task/message"
+	"github.com/szaffarano/gotas/pkg/task/repo"
 	"github.com/szaffarano/gotas/pkg/task/server"
 )
 
@@ -55,7 +60,7 @@ func serverCmd() *cobra.Command {
 	return &serverCmd
 }
 
-func process(client server.TaskdConn, _ config.Config) {
+func process(client server.TaskdConn, cfg config.Config) {
 	defer client.Close()
 
 	msg, err := receiveMessage(client)
@@ -66,7 +71,7 @@ func process(client server.TaskdConn, _ config.Config) {
 
 	log.Debugf("Message received: %v", msg)
 
-	resp, err := processMessage(msg)
+	resp, err := processMessage(msg, cfg)
 	if err != nil {
 		log.Errorf("Error handling input message: %v", err)
 		return
@@ -101,10 +106,10 @@ func receiveMessage(client io.Reader) (msg message.Message, err error) {
 	return message.NewMessage(string(buffer))
 }
 
-func processMessage(msg message.Message) (resp message.Message, err error) {
+func processMessage(msg message.Message, cfg config.Config) (resp message.Message, err error) {
 	switch t := msg.Header["type"]; t {
 	case "sync":
-		return sync(msg)
+		return sync(msg, cfg)
 	default:
 		resp = message.Message{
 			Header: map[string]string{
@@ -134,12 +139,84 @@ func replyMessage(client io.Writer, resp message.Message) error {
 	return nil
 }
 
-func sync(_ message.Message) (message.Message, error) {
+func sync(msg message.Message, cfg config.Config) (message.Message, error) {
 	// verify user credentials
+	repository, err := repo.OpenRepository(cfg.Get(repo.Root))
+	if err != nil {
+		return message.Message{
+			Header: map[string]string{
+				"type":   "response",
+				"code":   "500",
+				"status": "Error opening repository",
+			},
+		}, err
+	}
+
+	org, err := repository.GetOrg(msg.Header["org"])
+	if err != nil {
+		// TODO more specific errors?
+		return message.Message{
+			Header: map[string]string{
+				"type":   "response",
+				"code":   "400",
+				"status": "Invalid org",
+			},
+		}, err
+	}
+
+	found := false
+	for _, u := range org.Users {
+		if u.Key == msg.Header["key"] && u.Name == msg.Header["user"] {
+			found = true
+			break
+		}
+	}
+	if !found {
+		// TODO more specific errors?
+		return message.Message{
+			Header: map[string]string{
+				"type":   "response",
+				"code":   "401",
+				"status": "Invalid username or key",
+			},
+		}, err
+	}
 
 	// verify v1
+	if msg.Header["protocol"] != "v1" {
+		return message.Message{
+			Header: map[string]string{
+				"type":   "response",
+				"code":   "400",
+				"status": "Protocol not supported",
+			},
+		}, err
+	}
 
-	// verify redirect
+	// TODO verify redirect
+
+	scanner := bufio.NewScanner(strings.NewReader(msg.Payload))
+
+	var tx *uuid.UUID
+	var tasks []task.Task
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		if tx == nil {
+			if t, err := uuid.Parse(line); err == nil {
+				tx = &t
+				continue
+			}
+		}
+		t, err := task.NewTask(line)
+		if err != nil {
+			log.Errorf("Error parsing task: %v", err)
+			continue
+		}
+		tasks = append(tasks, t)
+	}
+
+	log.Infof("Msg sync, tx = %v, tasks = %v", tx, tasks)
 
 	resp := message.Message{
 		Header: map[string]string{

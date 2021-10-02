@@ -1,8 +1,10 @@
 package task
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/apex/log"
@@ -10,16 +12,48 @@ import (
 	"github.com/szaffarano/gotas/pkg/task/parser"
 )
 
+const (
+	DurationLayout = "20060102T150405Z"
+)
+
+var (
+	attributeTypes = map[string]string{
+		"depends":      "string",
+		"description":  "string",
+		"due":          "date",
+		"end":          "date",
+		"entry":        "date",
+		"imask":        "numeric",
+		"mask":         "string",
+		"modified":     "date",
+		"urgency":      "string",
+		"parent":       "string",
+		"priority":     "string",
+		"project":      "string",
+		"recur":        "duration",
+		"scheduled":    "date",
+		"modification": "date",
+		"start":        "date",
+		"status":       "string",
+		"tags":         "string",
+		"until":        "date",
+		"uuid":         "string",
+		"id":           "string",
+		"wait":         "date",
+	}
+)
+
 type Task struct {
 	annotationCount int
 	data            map[string]string
 }
 
-// The logic was taken from the original taskserver code
+// The parsing algorithm was taken from the original taskserver code
 // https://github.com/GothenburgBitFactory/taskserver/blob/1.2.0/src/Task.cpp
-// I tested this parsing from taskwarrior v2.3.0 (the first version with sync
-// command) until the last one, v2.6.0 (development branch) and it seems to work fine,
-// always receiving JSON payloads
+//
+// I tested this parser using taskwarrior payloads from v2.3.0 (the first sync
+// command implementation) until the last one, v2.6.0 (development branch) and
+// it seems to work fine, always receiving JSON payloads.
 func NewTask(raw string) (Task, error) {
 	task := Task{
 		data:            make(map[string]string),
@@ -34,7 +68,6 @@ func NewTask(raw string) (Task, error) {
 		line := new(strings.Builder)
 		if pig.Skip('[') && pig.GetUntil(']', line) && pig.Skip(']') && (pig.Skip('\n') || pig.Eos()) {
 			if len(line.String()) == 0 {
-				// throw std::string ("Empty record in input.");
 				log.Debug("Empty record in input, trying legacy parsing")
 				return parseLegacy(raw)
 			}
@@ -45,7 +78,7 @@ func NewTask(raw string) (Task, error) {
 				value := new(strings.Builder)
 				if attLine.GetUntil(':', name) && attLine.Skip(':') && attLine.GetQuoted('"', value) {
 					if !strings.HasPrefix("annotation_", name.String()) {
-						task.annotationCount += 1
+						task.annotationCount++
 					}
 
 					task.data[name.String()] = parser.Decode(value.String())
@@ -59,15 +92,12 @@ func NewTask(raw string) (Task, error) {
 			}
 		}
 	case '{':
-		// parseJSON (input);
-		// @TODO implement json parsing
-		return Task{}, fmt.Errorf("json format not implemented")
+		return parseJson(raw)
 	case utf8.RuneError:
 		if size == 0 {
 			return Task{}, fmt.Errorf("empty string")
-		} else {
-			return Task{}, fmt.Errorf("invalid string")
 		}
+		return Task{}, fmt.Errorf("invalid string")
 	default:
 		// throw std::string ("Record not recognized as format 4.");
 		log.Debugf("record not recognized as format 4")
@@ -104,6 +134,124 @@ func parseLegacy(line string) (Task, error) {
 	// recalc_urgency = true
 	// @TODO implement
 	return Task{}, fmt.Errorf("not implemented")
+}
+
+func parseJson(line string) (Task, error) {
+	// JSON format
+	values := make(map[string]interface{})
+
+	if err := json.Unmarshal([]byte(line), &values); err != nil {
+		log.Error("parsing error")
+		return Task{}, fmt.Errorf("parsing json: %v", err.Error())
+	}
+
+	t := Task{data: make(map[string]string)}
+
+	for attrName, attrValue := range values {
+
+		// If the attribute is a recognized column.
+		if attrType := attributeTypes[attrName]; attrType != "" {
+			if attrName == "id" {
+				// Any specified id is ignored.
+				continue
+			} else if attrName == "urgency" {
+				// Urgency, if present, is ignored.
+				continue
+			} else if attrName == "modification" {
+				// TW-1274 Standardization.
+				ts, err := time.Parse(DurationLayout, fmt.Sprintf("%v", attrValue))
+				if err != nil {
+					return Task{}, fmt.Errorf("parsing date in %v field, %v: %v", attrName, attrValue, err.Error())
+				}
+				t.data["modified"] = fmt.Sprintf("%d", ts.Unix())
+			} else if attrType == "date" {
+				// Dates are converted from ISO to epoch.
+				ts, err := time.Parse(DurationLayout, fmt.Sprintf("%v", attrValue))
+				if err != nil {
+					return Task{}, fmt.Errorf("parsing date in %v field, %v: %v", attrName, attrValue, err.Error())
+				}
+				t.data[attrName] = fmt.Sprintf("%d", ts.Unix())
+			} else if attrName == "tags" {
+				switch value := attrValue.(type) {
+				case []interface{}:
+					// Tags are an array of JSON strings.
+					for _, tag := range value {
+						t.addTag(fmt.Sprintf("%v", tag))
+					}
+				case string:
+					// This is a temporary measure to accomodate a malformed JSON message from
+					// Mirakel sync.
+					// 2016-02-21 Mirakel dropped sync support in late 2015. This can be
+					//            removed in a later release.
+					t.addTag(value)
+				default:
+					return Task{}, fmt.Errorf("invalid type for field tags: %v", attrValue)
+				}
+			} else if attrName == "depends" {
+				switch value := attrValue.(type) {
+				case []interface{}:
+					// Dependencies can be exported as an array of strings.
+					// 2016-02-21: This will be the only option in future releases.
+					//             See other 2016-02-21 comments for details.
+					for _, dependency := range value {
+						t.addDependency(fmt.Sprintf("%v", dependency))
+					}
+				case string:
+					// Dependencies can be exported as a single comma-separated string.
+					// 2016-02-21: Deprecated - see other 2016-02-21 comments for details.
+					// json::string* deps = (json::string*)i.second;
+					// auto uuids = split (deps->_data, ',');
+					for _, dependency := range strings.Split(value, ",") {
+						t.addDependency(fmt.Sprintf("%v", dependency))
+					}
+				default:
+					return Task{}, fmt.Errorf("depends type not match: %v", value)
+				}
+			} else {
+				// Other types are simply added.
+				// json.Unmarshal already decoded the `\uxxxx` escaped unicode
+				t.data[attrName] = fmt.Sprintf("%v", attrValue)
+			}
+		} else {
+			// UDA orphans and annotations do not have columns.
+
+			if attrName == "annotations" {
+				// Annotations are an array of JSON objects with 'entry' and
+				// 'description' values and must be converted.
+				// std::map <std::string, std::string> annos;
+
+				if annotations, ok := attrValue.([]interface{}); ok {
+					for _, item := range annotations {
+						if annotation, ok := item.(map[string]interface{}); ok {
+							when, ok := annotation["entry"]
+							if !ok {
+								return Task{}, fmt.Errorf("annotation is missing an entry date: %v", annotation)
+							}
+							what, ok := annotation["description"]
+							if !ok {
+								return Task{}, fmt.Errorf("annotation is missing a description: %v", annotation)
+							}
+
+							ts, err := time.Parse(DurationLayout, fmt.Sprintf("%v", when))
+							if err != nil {
+								return Task{}, fmt.Errorf("invalid date format %q: %v", when, err.Error())
+							}
+							name := fmt.Sprintf("annotation_%v", ts.Unix())
+
+							t.data[name] = fmt.Sprintf("%v", what)
+						} else {
+							return Task{}, fmt.Errorf("annotations type inside list not match: %T", attrValue)
+						}
+					}
+				} else {
+					return Task{}, fmt.Errorf("annotations type not match: %T", attrValue)
+				}
+			} else { // UDA Orphan - must be preserved.
+				t.data[attrName] = fmt.Sprintf("%v", attrValue)
+			}
+		}
+	}
+	return t, nil
 }
 
 func determineVersion(line string) int {
@@ -170,4 +318,36 @@ func determineVersion(line string) int {
 
 	// Zero means 'no idea'.
 	return 0
+}
+
+func (t *Task) addTag(tag string) {
+	var tags []string
+	if len(t.data["tags"]) > 0 {
+		tags = strings.Split(t.data["tags"], ",")
+	}
+	for _, t := range tags {
+		if t == tag {
+			// tag already exists, don't add it
+			return
+		}
+	}
+	tags = append(tags, tag)
+	t.data["tags"] = strings.Join(tags, ",")
+}
+
+func (t *Task) addDependency(dependency string) error {
+	if dependency == t.data["uuid"] {
+		return fmt.Errorf("a task cannot be dependent on itself")
+	}
+
+	depends := t.data["depends"]
+	if depends != "" {
+		// Check for extant dependency.
+		if !strings.Contains(depends, dependency) {
+			t.data["depends"] = fmt.Sprintf("%s,%s", depends, dependency)
+		}
+	} else {
+		t.data["depends"] = dependency
+	}
+	return nil
 }
