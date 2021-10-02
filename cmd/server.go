@@ -12,10 +12,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"github.com/szaffarano/gotas/pkg/config"
-	"github.com/szaffarano/gotas/pkg/task"
 	"github.com/szaffarano/gotas/pkg/task/message"
 	"github.com/szaffarano/gotas/pkg/task/repo"
-	"github.com/szaffarano/gotas/pkg/task/server"
+	"github.com/szaffarano/gotas/pkg/task/task"
+	server "github.com/szaffarano/gotas/pkg/task/transport"
 )
 
 func serverCmd() *cobra.Command {
@@ -60,7 +60,7 @@ func serverCmd() *cobra.Command {
 	return &serverCmd
 }
 
-func process(client server.TaskdConn, cfg config.Config) {
+func process(client server.Client, cfg config.Config) {
 	defer client.Close()
 
 	msg, err := receiveMessage(client)

@@ -1,4 +1,4 @@
-package server
+package transport
 
 import (
 	"crypto/tls"
@@ -12,56 +12,8 @@ import (
 	"github.com/szaffarano/gotas/pkg/task/repo"
 )
 
-// Server is the taskd server
-type Server interface {
-	// NextClient returns a client
-	NextClient() (TaskdConn, error)
-
-	// Close finishes the client connection
-	Close() error
-}
-
-// TaskdConn represents a Taskd client connected to taskd server
-type TaskdConn interface {
-	Read(buf []byte) (int, error)
-	Write(buf []byte) (int, error)
-	Close() error
-}
-
-func (s *server) Close() error {
-	return s.listener.Close()
-}
-
-type client struct {
-	conn net.Conn
-}
-
-func (c *client) Read(buf []byte) (int, error) {
-	return c.conn.Read(buf)
-}
-
-func (c *client) Write(buf []byte) (int, error) {
-	return c.conn.Write(buf)
-}
-
-func (c *client) Close() error {
-	return c.conn.Close()
-}
-
-type server struct {
-	listener net.Listener
-}
-
-func (s *server) NextClient() (TaskdConn, error) {
-	conn, err := s.listener.Accept()
-	if err != nil {
-		return nil, err
-	}
-
-	return &client{conn}, nil
-}
-
-func NewServer(cfg config.Config) (Server, error) {
+// NewTlsServer creates a new tls-based server
+func newTlsServer(cfg config.Config) (Server, error) {
 	var ca []byte
 	var cert tls.Certificate
 	var err error
@@ -94,7 +46,6 @@ func NewServer(cfg config.Config) (Server, error) {
 		},
 		ClientAuth: tls.RequireAndVerifyClientCert,
 	}
-	// @TODO implement `trust` option
 
 	listener, err := tls.Listen("tcp", cfg.Get(repo.BindAddress), tlsCfg)
 	if err != nil {
@@ -102,5 +53,38 @@ func NewServer(cfg config.Config) (Server, error) {
 	}
 
 	log.Infof("Listening on %s...", cfg.Get(repo.BindAddress))
-	return &server{listener}, nil
+	return &tlsServer{listener}, nil
+}
+
+type tlsClient struct {
+	conn net.Conn
+}
+
+type tlsServer struct {
+	listener net.Listener
+}
+
+func (s *tlsServer) Close() error {
+	return s.listener.Close()
+}
+
+func (c *tlsClient) Read(buf []byte) (int, error) {
+	return c.conn.Read(buf)
+}
+
+func (c *tlsClient) Write(buf []byte) (int, error) {
+	return c.conn.Write(buf)
+}
+
+func (c *tlsClient) Close() error {
+	return c.conn.Close()
+}
+
+func (s *tlsServer) NextClient() (Client, error) {
+	conn, err := s.listener.Accept()
+	if err != nil {
+		return nil, err
+	}
+
+	return &tlsClient{conn}, nil
 }

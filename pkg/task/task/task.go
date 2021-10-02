@@ -1,3 +1,6 @@
+// task defines the common model used by taskd
+// in particular the Task type as well some constants and definitions
+
 package task
 
 import (
@@ -13,6 +16,10 @@ import (
 )
 
 const (
+	// DurationLayout is the format used to represent dates. The original
+	// taskserver implementation allows many different formats but AFAIK those
+	// are for the client-side (task warrior).  At least 2.3.0+ task warrior
+	// clients, always send dates in this format.
 	DurationLayout = "20060102T150405Z"
 )
 
@@ -23,26 +30,27 @@ var (
 		"due":          "date",
 		"end":          "date",
 		"entry":        "date",
+		"id":           "string",
 		"imask":        "numeric",
 		"mask":         "string",
+		"modification": "date",
 		"modified":     "date",
-		"urgency":      "string",
 		"parent":       "string",
 		"priority":     "string",
 		"project":      "string",
 		"recur":        "duration",
 		"scheduled":    "date",
-		"modification": "date",
 		"start":        "date",
 		"status":       "string",
 		"tags":         "string",
 		"until":        "date",
+		"urgency":      "string",
 		"uuid":         "string",
-		"id":           "string",
 		"wait":         "date",
 	}
 )
 
+// Task represents each task sent by the client to be synced
 type Task struct {
 	annotationCount int
 	data            map[string]string
@@ -55,56 +63,55 @@ type Task struct {
 // command implementation) until the last one, v2.6.0 (development branch) and
 // it seems to work fine, always receiving JSON payloads.
 func NewTask(raw string) (Task, error) {
+	rune, _ := utf8.DecodeRuneInString(raw)
+	switch rune {
+	// first try, format v4
+	case '[':
+		return parseV4(raw)
+	case '{':
+		return parseJson(raw)
+	case utf8.RuneError:
+		return Task{}, fmt.Errorf("invalid string")
+	default:
+		log.Debugf("record not recognized as format 4")
+		return parseLegacy(raw)
+	}
+}
+
+func parseV4(raw string) (Task, error) {
 	task := Task{
 		data:            make(map[string]string),
 		annotationCount: 0,
 	}
 
-	rune, size := utf8.DecodeRuneInString(raw)
-	switch rune {
-	// first try, format v4
-	case '[':
-		pig := parser.NewPig(raw)
-		line := new(strings.Builder)
-		if pig.Skip('[') && pig.GetUntil(']', line) && pig.Skip(']') && (pig.Skip('\n') || pig.Eos()) {
-			if len(line.String()) == 0 {
-				log.Debug("Empty record in input, trying legacy parsing")
+	pig := parser.NewPig(raw)
+	line := new(strings.Builder)
+
+	if pig.Skip('[') && pig.GetUntil(']', line) && pig.Skip(']') && (pig.Skip('\n') || pig.Eos()) {
+		if len(line.String()) == 0 {
+			log.Debug("Empty record in input, trying legacy parsing")
+			return parseLegacy(raw)
+		}
+
+		attLine := parser.NewPig(line.String())
+		for !attLine.Eos() {
+			name := new(strings.Builder)
+			value := new(strings.Builder)
+			if attLine.GetUntil(':', name) && attLine.Skip(':') && attLine.GetQuoted('"', value) {
+				if !strings.HasPrefix("annotation_", name.String()) {
+					task.annotationCount++
+				}
+
+				task.data[name.String()] = parser.Decode(value.String())
+			} else if attLine.Eos() {
+				// throw std::string ("Unrecognized characters at end of line.");
+				log.Debug("unrecognized characters at end of line, trying legacy parsing")
 				return parseLegacy(raw)
 			}
 
-			attLine := parser.NewPig(line.String())
-			for !attLine.Eos() {
-				name := new(strings.Builder)
-				value := new(strings.Builder)
-				if attLine.GetUntil(':', name) && attLine.Skip(':') && attLine.GetQuoted('"', value) {
-					if !strings.HasPrefix("annotation_", name.String()) {
-						task.annotationCount++
-					}
-
-					task.data[name.String()] = parser.Decode(value.String())
-				} else if attLine.Eos() {
-					// throw std::string ("Unrecognized characters at end of line.");
-					log.Debug("unrecognized characters at end of line, trying legacy parsing")
-					return parseLegacy(raw)
-				}
-
-				attLine.Skip(' ')
-			}
+			attLine.Skip(' ')
 		}
-	case '{':
-		return parseJson(raw)
-	case utf8.RuneError:
-		if size == 0 {
-			return Task{}, fmt.Errorf("empty string")
-		}
-		return Task{}, fmt.Errorf("invalid string")
-	default:
-		// throw std::string ("Record not recognized as format 4.");
-		log.Debugf("record not recognized as format 4")
-		return parseLegacy(raw)
 	}
-
-	// recalc_urgency = true;
 
 	return task, nil
 }
@@ -137,18 +144,15 @@ func parseLegacy(line string) (Task, error) {
 }
 
 func parseJson(line string) (Task, error) {
-	// JSON format
-	values := make(map[string]interface{})
+	lineAsJson := make(map[string]interface{})
 
-	if err := json.Unmarshal([]byte(line), &values); err != nil {
-		log.Error("parsing error")
+	if err := json.Unmarshal([]byte(line), &lineAsJson); err != nil {
 		return Task{}, fmt.Errorf("parsing json: %v", err.Error())
 	}
 
 	t := Task{data: make(map[string]string)}
 
-	for attrName, attrValue := range values {
-
+	for attrName, attrValue := range lineAsJson {
 		// If the attribute is a recognized column.
 		if attrType := attributeTypes[attrName]; attrType != "" {
 			if attrName == "id" {
@@ -179,8 +183,8 @@ func parseJson(line string) (Task, error) {
 						t.addTag(fmt.Sprintf("%v", tag))
 					}
 				case string:
-					// This is a temporary measure to accomodate a malformed JSON message from
-					// Mirakel sync.
+					// This is a temporary measure to accomodate a malformed JSON message
+					// from Mirakel sync.
 					// 2016-02-21 Mirakel dropped sync support in late 2015. This can be
 					//            removed in a later release.
 					t.addTag(value)
@@ -201,8 +205,6 @@ func parseJson(line string) (Task, error) {
 				case string:
 					// Dependencies can be exported as a single comma-separated string.
 					// 2016-02-21: Deprecated - see other 2016-02-21 comments for details.
-					// json::string* deps = (json::string*)i.second;
-					// auto uuids = split (deps->_data, ',');
 					for _, dependency := range strings.Split(value, ",") {
 						if err := t.addDependency(fmt.Sprintf("%v", dependency)); err != nil {
 							return Task{}, err
@@ -222,8 +224,6 @@ func parseJson(line string) (Task, error) {
 			if attrName == "annotations" {
 				// Annotations are an array of JSON objects with 'entry' and
 				// 'description' values and must be converted.
-				// std::map <std::string, std::string> annos;
-
 				if annotations, ok := attrValue.([]interface{}); ok {
 					for _, item := range annotations {
 						if annotation, ok := item.(map[string]interface{}); ok {
@@ -244,11 +244,11 @@ func parseJson(line string) (Task, error) {
 
 							t.data[name] = fmt.Sprintf("%v", what)
 						} else {
-							return Task{}, fmt.Errorf("annotations type inside list not match: %T", attrValue)
+							return Task{}, fmt.Errorf("annotations type inside list does not match: %T", attrValue)
 						}
 					}
 				} else {
-					return Task{}, fmt.Errorf("annotations type not match: %T", attrValue)
+					return Task{}, fmt.Errorf("annotations type does not match: %T", attrValue)
 				}
 			} else { // UDA Orphan - must be preserved.
 				t.data[attrName] = fmt.Sprintf("%v", attrValue)

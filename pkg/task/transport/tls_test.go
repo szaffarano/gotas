@@ -1,4 +1,4 @@
-package server
+package transport
 
 import (
 	"crypto/tls"
@@ -67,7 +67,7 @@ func TestServer(t *testing.T) {
 				}
 				cfg := newTaskdConfig(t, c.repo, opts...)
 
-				srv, err := NewServer(cfg)
+				srv, err := newTlsServer(cfg)
 				assert.NotNil(t, err)
 				assert.Nil(t, srv)
 			})
@@ -75,18 +75,18 @@ func TestServer(t *testing.T) {
 	})
 }
 
-func newTaskdClientServer(t *testing.T, srvCfgFile, clCfgFile string) (net.Conn, TaskdConn, func()) {
+func newTaskdClientServer(t *testing.T, srvCfgFile, clCfgFile string) (net.Conn, Client, func()) {
 	t.Helper()
 
 	const ack = "ack"
 	var client net.Conn
-	var server TaskdConn
+	var server Client
 
 	srvConfig := newTaskdConfig(t, srvCfgFile, repo.BindAddress, fmt.Sprintf("localhost:%d", nextFreePort(t, 1025)))
 	clientCfg := newTLSConfig(t, clCfgFile)
 
 	ready := make(chan []byte)
-	srv, err := NewServer(srvConfig)
+	srv, err := newTlsServer(srvConfig)
 	if err != nil {
 		assert.FailNowf(t, "Error creating server: %s", err.Error())
 	}
