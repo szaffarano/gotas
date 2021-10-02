@@ -12,12 +12,6 @@ import (
 	"unicode/utf8"
 )
 
-var (
-	isoEnabled            bool
-	standaloneDateEnabled bool
-	standaloneTimeEnabled bool
-)
-
 type Pig struct {
 	value string
 	idx   int

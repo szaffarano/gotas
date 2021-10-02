@@ -194,7 +194,9 @@ func parseJson(line string) (Task, error) {
 					// 2016-02-21: This will be the only option in future releases.
 					//             See other 2016-02-21 comments for details.
 					for _, dependency := range value {
-						t.addDependency(fmt.Sprintf("%v", dependency))
+						if err := t.addDependency(fmt.Sprintf("%v", dependency)); err != nil {
+							return Task{}, err
+						}
 					}
 				case string:
 					// Dependencies can be exported as a single comma-separated string.
@@ -202,7 +204,9 @@ func parseJson(line string) (Task, error) {
 					// json::string* deps = (json::string*)i.second;
 					// auto uuids = split (deps->_data, ',');
 					for _, dependency := range strings.Split(value, ",") {
-						t.addDependency(fmt.Sprintf("%v", dependency))
+						if err := t.addDependency(fmt.Sprintf("%v", dependency)); err != nil {
+							return Task{}, err
+						}
 					}
 				default:
 					return Task{}, fmt.Errorf("depends type not match: %v", value)

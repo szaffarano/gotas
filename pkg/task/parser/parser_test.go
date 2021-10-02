@@ -155,9 +155,9 @@ func TestGetValue(t *testing.T) {
 
 	assert.Equal(t, "345", p.GetValue())
 
-	p.GetDigits()
-
-	assert.Equal(t, "", p.GetValue())
+	if _, err := p.GetDigits(); assert.Nil(t, err) {
+		assert.Equal(t, "", p.GetValue())
+	}
 }
 
 func TestPeek(t *testing.T) {
