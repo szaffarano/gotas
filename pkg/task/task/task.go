@@ -179,7 +179,12 @@ func parseJson(line string) (Task, error) {
 		return Task{}, fmt.Errorf("parsing json: %v", err.Error())
 	}
 
-	t := Task{data: make(map[string]string)}
+	uuid := fmt.Sprintf("%v", lineAsJson["uuid"])
+	t := Task{
+		data: map[string]string{
+			"uuid": uuid,
+		},
+	}
 
 	for attrName, attrValue := range lineAsJson {
 		// If the attribute is a recognized column.
@@ -196,14 +201,14 @@ func parseJson(line string) (Task, error) {
 				if err != nil {
 					return Task{}, fmt.Errorf("parsing date in %v field, %v: %v", attrName, attrValue, err.Error())
 				}
-				t.data["modified"] = fmt.Sprintf("%d", ts.Unix())
+				t.data["modified"] = fmt.Sprintf("%d", ts.UTC().Unix())
 			} else if attrType == "date" {
 				// Dates are converted from ISO to epoch.
 				ts, err := time.Parse(DateLayout, fmt.Sprintf("%v", attrValue))
 				if err != nil {
 					return Task{}, fmt.Errorf("parsing date in %v field, %v: %v", attrName, attrValue, err.Error())
 				}
-				t.data[attrName] = fmt.Sprintf("%d", ts.Unix())
+				t.data[attrName] = fmt.Sprintf("%d", ts.UTC().Unix())
 			} else if attrName == "tags" {
 				switch value := attrValue.(type) {
 				case []interface{}:
@@ -269,7 +274,7 @@ func parseJson(line string) (Task, error) {
 							if err != nil {
 								return Task{}, fmt.Errorf("invalid date format %q: %v", when, err.Error())
 							}
-							name := fmt.Sprintf("annotation_%v", ts.Unix())
+							name := fmt.Sprintf("annotation_%v", ts.UTC().Unix())
 
 							t.data[name] = fmt.Sprintf("%v", what)
 						} else {
@@ -421,7 +426,7 @@ func (t *Task) ComposeJson(decorate bool) string {
 			}
 
 			newAnnotation := map[string]string{
-				"entry":       time.Unix(int64(epoch), 0).Format(DateLayout),
+				"entry":       time.Unix(int64(epoch), 0).UTC().Format(DateLayout),
 				"description": attrValue,
 			}
 
