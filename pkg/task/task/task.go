@@ -17,11 +17,11 @@ import (
 )
 
 const (
-	// DurationLayout is the format used to represent dates. The original
+	// DateLayout is the format used to represent dates. The original
 	// taskserver implementation allows many different formats but AFAIK those
 	// are for the client-side (task warrior).  At least 2.3.0+ task warrior
 	// clients, always send dates in this format.
-	DurationLayout = "20060102T150405Z"
+	DateLayout = "20060102T150405Z"
 )
 
 var (
@@ -127,7 +127,7 @@ func parseV4(raw string) (Task, error) {
 			name := new(strings.Builder)
 			value := new(strings.Builder)
 			if attLine.GetUntil(':', name) && attLine.Skip(':') && attLine.GetQuoted('"', value) {
-				if !strings.HasPrefix("annotation_", name.String()) {
+				if !strings.HasPrefix(name.String(), "annotation_") {
 					task.annotationCount++
 				}
 
@@ -192,14 +192,14 @@ func parseJson(line string) (Task, error) {
 				continue
 			} else if attrName == "modification" {
 				// TW-1274 Standardization.
-				ts, err := time.Parse(DurationLayout, fmt.Sprintf("%v", attrValue))
+				ts, err := time.Parse(DateLayout, fmt.Sprintf("%v", attrValue))
 				if err != nil {
 					return Task{}, fmt.Errorf("parsing date in %v field, %v: %v", attrName, attrValue, err.Error())
 				}
 				t.data["modified"] = fmt.Sprintf("%d", ts.Unix())
 			} else if attrType == "date" {
 				// Dates are converted from ISO to epoch.
-				ts, err := time.Parse(DurationLayout, fmt.Sprintf("%v", attrValue))
+				ts, err := time.Parse(DateLayout, fmt.Sprintf("%v", attrValue))
 				if err != nil {
 					return Task{}, fmt.Errorf("parsing date in %v field, %v: %v", attrName, attrValue, err.Error())
 				}
@@ -265,7 +265,7 @@ func parseJson(line string) (Task, error) {
 								return Task{}, fmt.Errorf("annotation is missing a description: %v", annotation)
 							}
 
-							ts, err := time.Parse(DurationLayout, fmt.Sprintf("%v", when))
+							ts, err := time.Parse(DateLayout, fmt.Sprintf("%v", when))
 							if err != nil {
 								return Task{}, fmt.Errorf("invalid date format %q: %v", when, err.Error())
 							}
@@ -378,7 +378,7 @@ func (t *Task) GetDate(name string) time.Time {
 		if err != nil {
 			return time.Time{}
 		}
-		return time.Unix(int64(epoch), 0)
+		return time.Unix(int64(epoch), 0).UTC()
 	}
 	return time.Time{}
 }
@@ -421,7 +421,7 @@ func (t *Task) ComposeJson(decorate bool) string {
 			}
 
 			newAnnotation := map[string]string{
-				"entry":       time.Unix(int64(epoch), 0).Format(time.RFC3339),
+				"entry":       time.Unix(int64(epoch), 0).Format(DateLayout),
 				"description": attrValue,
 			}
 
@@ -432,7 +432,7 @@ func (t *Task) ComposeJson(decorate bool) string {
 				filtered["annotations"] = append(annotations.([]map[string]string), newAnnotation)
 			}
 		} else if attrType == "date" {
-			filtered[attrName] = t.GetDate(attrName).Format(time.RFC3339)
+			filtered[attrName] = t.GetDate(attrName).Format(DateLayout)
 		} else if attrType == "numeric" {
 			filtered[attrName] = t.GetInt(attrName)
 		} else if attrName == "tags" {
@@ -440,7 +440,10 @@ func (t *Task) ComposeJson(decorate bool) string {
 		} else if attrName == "depends" {
 			// taskwarrior has two possible type for it, string or array.
 			// see https://github.com/GothenburgBitFactory/taskserver/blob/1aaa22452c2c656c5cdb8e017368e0848e54555d/src/Task.cpp#L935-L948
+			// Set string and not list to be compliant with taskd 1.2.0 and tw 2.5.x
+			// TODO be aware of the config property "json.depends.array"
 			filtered[attrName] = strings.Split(attrValue, ",")
+			filtered[attrName] = fmt.Sprintf("%v", attrValue)
 		} else if len(attrValue) > 0 {
 			filtered[attrName] = attrValue
 		}

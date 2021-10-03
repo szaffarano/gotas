@@ -115,6 +115,10 @@ func sync(msg message.Message, cfg config.Config) message.Message {
 	}
 
 	branchPoint := findBranchPoint(serverData, tx.String())
+	if branchPoint == -1 {
+		return message.NewResponseMessage("500", "Could not find the last sync transaction. Did you skip the 'task sync init' requirement?")
+	}
+
 	serverSubset, err := extractSubset(serverData, branchPoint)
 	if err != nil {
 		return message.NewResponseMessage("500", err.Error())
@@ -143,6 +147,7 @@ func sync(msg message.Message, cfg config.Config) message.Message {
 
 			// Find common ancestor, prior to branch point
 			commonAncestor, err := findCommonAncestor(serverData, branchPoint, uuid)
+			log.Infof("Common ancestor: %v", commonAncestor)
 			if err != nil {
 				return message.NewResponseMessage("500", err.Error())
 			}
@@ -156,7 +161,7 @@ func sync(msg message.Message, cfg config.Config) message.Message {
 				return message.NewResponseMessage("500", err.Error())
 			}
 
-			// Merge sort between client_mods and server_mods, patching ancestor.
+			// Merge sort between clientMods and serverMods, patching ancestor.
 			combined, err := task.NewTask(serverData[commonAncestor])
 			if err != nil {
 				return message.NewResponseMessage("500", err.Error())
@@ -259,7 +264,7 @@ func clientData(payload string) (tx uuid.UUID, tasks []task.Task) {
 
 func findBranchPoint(data []string, key string) int {
 	// A missing key is either a first-time sync, or a request to get all data.
-	if key == "" {
+	if key == "" || key == "00000000-0000-0000-0000-000000000000" {
 		return 0
 	}
 
@@ -277,16 +282,17 @@ func findBranchPoint(data []string, key string) int {
 func extractSubset(data []string, branchPoint int) ([]task.Task, error) {
 
 	if branchPoint < len(data) {
-		tasks := make([]task.Task, 0, len(data))
-		for _, line := range data {
-			if strings.HasPrefix("{", line) {
-				t, err := task.NewTask(line)
+		tasks := make([]task.Task, 0, len(data)-branchPoint)
+		for i := branchPoint; i < len(data); i++ {
+			if strings.HasPrefix(data[i], "{") {
+				t, err := task.NewTask(data[i])
 				if err != nil {
 					return nil, err
 				}
 				tasks = append(tasks, t)
 			}
 		}
+
 		return tasks, nil
 	}
 	return nil, fmt.Errorf("invalid branchPoint: %d for %d data length", branchPoint, len(data))
@@ -362,7 +368,7 @@ func mergeSort(left []task.Task, right []task.Task, combined task.Task) {
 	dummy := []task.Task{combined}
 	var prevLeft, idxLeft, prevRight, idxRight int
 
-	for prevLeft < len(dummy) && idxLeft < len(left) {
+	for idxLeft < len(left) && idxRight < len(right) {
 		mod_l := last_modification(dummy[idxLeft])
 		mod_r := last_modification(right[idxRight])
 		if mod_l.Before(mod_r) {
@@ -437,15 +443,14 @@ func generate_payload(subset []task.Task, additions []string, key string) string
 // 'base'.  All three tasks have the same uuid.
 func patch(base, from, to task.Task) {
 	// Determine the different attribute names between from and to.
-	from_atts := from.GetAttrNames()
-	to_atts := to.GetAttrNames()
+	fromAtts := from.GetAttrNames()
+	toAtts := to.GetAttrNames()
 
-	from_only, to_only := listDiff(from_atts, to_atts)
-
-	common_atts := listIntersect(from_atts, to_atts)
+	fromOnly, to_only := listDiff(fromAtts, toAtts)
+	commonAtts := listIntersect(fromAtts, toAtts)
 
 	// The from-only attributes must be deleted from base.
-	for _, att := range from_only {
+	for _, att := range fromOnly {
 		log.Infof("patch remove %v", att)
 		base.Remove(att)
 	}
@@ -457,7 +462,7 @@ func patch(base, from, to task.Task) {
 	}
 
 	// The intersecting attributes, if the values differ, are applied.
-	for _, att := range common_atts {
+	for _, att := range commonAtts {
 		if from.Get(att) != to.Get(att) {
 			log.Infof("patch modify %v=%v", att, to.Get(att))
 			base.Set(att, to.Get(att))
