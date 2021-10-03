@@ -1,0 +1,18 @@
+{
+  "customField": "value for custom field",
+  "depends": ["abc", "xyz"],
+  "imask": 1,
+  "description": "New task",
+  "entry": "20210930T115730Z",
+  "modified": "20211002T125247Z",
+  "status": "pending",
+  "uuid": "b04d7885-31ff-4992-b4fe-5cde1b41ca54",
+  "tags": ["tag1", "tag2"],
+  "annotations": [
+    { "entry": "20210930T120041Z", "description": "A small annotation" },
+    { "entry": "20210930T120044Z", "description": "A small annotation 2" }
+  ],
+  "modification": "20211002T125247Z",
+  "urgency": "u",
+  "id": "1"
+}

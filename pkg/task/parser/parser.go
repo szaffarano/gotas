@@ -1,13 +1,17 @@
+// The logic for this package was taken from the original taskserver code
+// https://github.com/GothenburgBitFactory/libshared/blob/1fa5dcbf53a280857e35436aef6beb6a37266e33/src/Pig.cpp
+
 package parser
 
 import (
+	"fmt"
 	"io"
+	"strconv"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
-// The logic was taken from the original taskserver code
-// https://github.com/GothenburgBitFactory/libshared/blob/1fa5dcbf53a280857e35436aef6beb6a37266e33/src/Pig.cpp
 type Pig struct {
 	value string
 	idx   int
@@ -137,6 +141,95 @@ func (p *Pig) GetRemainder() string {
 	p.idx += len(result)
 
 	return result
+}
+
+// SkipN move forward `n` runes and return true, in case it found an invalid rune or reach eos, returns false
+func (p *Pig) SkipN(n int) bool {
+	save := p.idx
+
+	for count := 0; count < n; count++ {
+		r, size := utf8.DecodeRuneInString(p.value[p.idx:])
+		if r == utf8.RuneError {
+			p.idx = save
+			return false
+		}
+		p.idx += size
+	}
+	return true
+}
+
+func (p *Pig) Cursor() int {
+	return p.idx
+}
+
+func (p *Pig) RestoreTo(n int) int {
+	if n > 0 && n < len(p.value) {
+		p.idx = n
+	}
+	return p.idx
+}
+
+func (p *Pig) GetDigit() (int, error) {
+	return p.GetNDigits(1)
+}
+
+func (p *Pig) GetDigit2() (int, error) {
+	return p.GetNDigits(2)
+}
+
+func (p *Pig) GetDigit3() (int, error) {
+	return p.GetNDigits(3)
+}
+
+func (p *Pig) GetDigit4() (int, error) {
+	return p.GetNDigits(4)
+}
+
+func (p *Pig) GetValue() string {
+	return p.value[p.idx:]
+}
+
+func (p *Pig) GetNDigits(n int) (int, error) {
+	total := 0
+	for i := 0; i < n; i++ {
+		r, size := utf8.DecodeRuneInString(p.value[p.idx:])
+		if r == utf8.RuneError || !unicode.IsDigit(r) {
+			return 0, fmt.Errorf("no valid digit")
+		}
+		total += size
+	}
+	result, err := strconv.Atoi(p.value[p.idx : p.idx+total])
+	if err != nil {
+		return 0, err
+	}
+	p.idx += total
+	return result, nil
+}
+
+func (p *Pig) GetDigits() (int, error) {
+	save := p.idx
+
+	prev := p.idx
+	for {
+		r, size := utf8.DecodeRuneInString(p.value[p.idx:])
+		if r == utf8.RuneError || !unicode.IsDigit(r) {
+			p.idx = prev
+			break
+		}
+		p.idx += size
+		prev = p.idx
+	}
+
+	if p.idx > save {
+		return strconv.Atoi(p.value[save : p.idx-save])
+	}
+
+	return 0, fmt.Errorf("no valid number found")
+}
+
+func (p *Pig) Peek() rune {
+	r, _ := utf8.DecodeRuneInString(p.value[p.idx:])
+	return r
 }
 
 func Decode(value string) string {
