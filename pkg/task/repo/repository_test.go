@@ -290,7 +290,7 @@ func TestCopy(t *testing.T) {
 		assert.Error(t, copy(dir, filepath.Join(dir, "bla", "ble")))
 	})
 
-	os.Chmod(source.Name(), 0000)
+	assert.NoError(t, os.Chmod(source.Name(), 0000))
 
 	t.Run("source does not have permission", func(t *testing.T) {
 		assert.Error(t, copy(source.Name(), filepath.Join(dir, "bla")))
