@@ -293,7 +293,10 @@ func (r *Repository) AppendData(user User, data []string) error {
 			return fmt.Errorf("open tx file: %v", err)
 		}
 	} else {
-		copy(txFilePath, txFileTempPath)
+		if err := copy(txFilePath, txFileTempPath); err != nil {
+			return err
+		}
+
 		if file, err = os.OpenFile(txFileTempPath, os.O_RDWR|os.O_APPEND, 0600); err != nil {
 			return fmt.Errorf("open tx file: %v", err)
 		}
