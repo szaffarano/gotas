@@ -67,7 +67,7 @@ func TestServer(t *testing.T) {
 				}
 				cfg := newTaskdConfig(t, c.repo, opts...)
 
-				srv, err := newTlsServer(cfg)
+				srv, err := NewServer(cfg)
 				assert.NotNil(t, err)
 				assert.Nil(t, srv)
 			})

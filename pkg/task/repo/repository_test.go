@@ -159,6 +159,11 @@ func TestNewOrganization(t *testing.T) {
 		assert.NotNil(t, err)
 	})
 
+	t.Run("new organization fails if invalid name", func(t *testing.T) {
+		_, err := repo.NewOrg("Pu/blic")
+		assert.NotNil(t, err)
+	})
+
 }
 
 func TestNewUser(t *testing.T) {
@@ -264,7 +269,47 @@ func TestAppendData(t *testing.T) {
 	assert.NoError(t, repo.AppendData(user, data))
 }
 
+func TestCopy(t *testing.T) {
+	dir := tempDir(t)
+	source := tempFile(t)
+	defer func() {
+		source.Close()
+		os.Remove(source.Name())
+		os.RemoveAll(dir)
+	}()
+
+	t.Run("invalid source", func(t *testing.T) {
+		assert.Error(t, copy("invalid", filepath.Join(dir, "bla")))
+	})
+
+	t.Run("invalid target", func(t *testing.T) {
+		assert.Error(t, copy(source.Name(), filepath.Join(dir, "bla", "ble")))
+	})
+
+	t.Run("target is dir", func(t *testing.T) {
+		assert.Error(t, copy(dir, filepath.Join(dir, "bla", "ble")))
+	})
+
+	os.Chmod(source.Name(), 0000)
+
+	t.Run("source does not have permission", func(t *testing.T) {
+		assert.Error(t, copy(source.Name(), filepath.Join(dir, "bla")))
+	})
+}
+
+func tempFile(t *testing.T) *os.File {
+	t.Helper()
+
+	file, err := ioutil.TempFile(os.TempDir(), "gotas")
+
+	assert.Nil(t, err)
+
+	return file
+}
+
 func tempDir(t *testing.T) string {
+	t.Helper()
+
 	dir, err := ioutil.TempDir(os.TempDir(), "gotas")
 
 	assert.Nil(t, err)
