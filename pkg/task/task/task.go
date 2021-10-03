@@ -6,6 +6,7 @@ package task
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -47,6 +48,34 @@ var (
 		"urgency":      "string",
 		"uuid":         "string",
 		"wait":         "date",
+	}
+
+	ErrorCodes = map[string]string{
+		// 2xx Success.
+		"200": "Ok",
+		"201": "No change",
+		"202": "Decline",
+
+		// 3xx Partial success.
+		"300": "Deprecated request type",
+		"301": "Redirect",
+		"302": "Retry",
+
+		// 4xx Client error.
+		// "401": "Failure",
+		"400": "Malformed data",
+		"401": "Unsupported encoding",
+		"420": "Server temporarily unavailable",
+		"430": "Access denied",
+		"431": "Account suspended",
+		"432": "Account terminated",
+
+		// 5xx Server error.
+		"500": "Syntax error in request",
+		"501": "Syntax error, illegal parameters",
+		"502": "Not implemented",
+		"503": "Command parameter not implemented",
+		"504": "Request too big",
 	}
 )
 
@@ -322,6 +351,108 @@ func determineVersion(line string) int {
 
 	// Zero means 'no idea'.
 	return 0
+}
+
+func (t *Task) Get(name string) string {
+	return t.data[name]
+}
+
+func (t *Task) Set(name, value string) {
+	t.data[name] = value
+}
+
+func (t *Task) GetInt(name string) int {
+	if value, ok := t.data[name]; ok {
+		num, err := strconv.Atoi(value)
+		if err != nil {
+			return 0
+		}
+		return num
+	}
+	return 0
+}
+
+func (t *Task) GetDate(name string) time.Time {
+	if value, ok := t.data[name]; ok {
+		epoch, err := strconv.Atoi(value)
+		if err != nil {
+			return time.Time{}
+		}
+		return time.Unix(int64(epoch), 0)
+	}
+	return time.Time{}
+}
+
+func (t *Task) SetDate(name string, d time.Time) {
+	t.data[name] = fmt.Sprintf("%v", d.Unix())
+}
+
+func (t *Task) Has(name string) bool {
+	_, ok := t.data[name]
+	return ok
+}
+
+func (t *Task) GetAttrNames() []string {
+	attrs := make([]string, 0, len(t.data))
+	for k := range t.data {
+		attrs = append(attrs, k)
+	}
+	return attrs
+}
+
+func (t *Task) Remove(name string) {
+	delete(t.data, name)
+}
+
+func (t *Task) ComposeJson(decorate bool) string {
+	filtered := make(map[string]interface{})
+
+	for attrName, attrValue := range t.data {
+		attrType := attributeTypes[attrName]
+
+		if attrName == "id" && decorate {
+			filtered[attrName] = attrValue
+		}
+		if strings.HasPrefix(attrName, "annotation_") {
+			epoch, err := strconv.Atoi(attrName[len("annotation_"):])
+			if err != nil {
+				log.Warnf("Malformed annotation %q: %v", attrName, err)
+				continue
+			}
+
+			newAnnotation := map[string]string{
+				"entry":       time.Unix(int64(epoch), 0).Format(time.RFC3339),
+				"description": attrValue,
+			}
+
+			annotations, ok := filtered["annotations"]
+			if !ok {
+				filtered["annotations"] = []map[string]string{newAnnotation}
+			} else {
+				filtered["annotations"] = append(annotations.([]map[string]string), newAnnotation)
+			}
+		} else if attrType == "date" {
+			filtered[attrName] = t.GetDate(attrName).Format(time.RFC3339)
+		} else if attrType == "numeric" {
+			filtered[attrName] = t.GetInt(attrName)
+		} else if attrName == "tags" {
+			filtered[attrName] = strings.Split(attrValue, ",")
+		} else if attrName == "depends" {
+			// taskwarrior has two possible type for it, string or array.
+			// see https://github.com/GothenburgBitFactory/taskserver/blob/1aaa22452c2c656c5cdb8e017368e0848e54555d/src/Task.cpp#L935-L948
+			filtered[attrName] = strings.Split(attrValue, ",")
+		} else if len(attrValue) > 0 {
+			filtered[attrName] = attrValue
+		}
+	}
+
+	value, err := json.Marshal(filtered)
+	if err != nil {
+		// TODO return an error or just log it?
+		log.Errorf("Error marshaling task: %v", err)
+		return ""
+	}
+	return string(value)
 }
 
 func (t *Task) addTag(tag string) {

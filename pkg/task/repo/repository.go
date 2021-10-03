@@ -1,8 +1,10 @@
 package repo
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"io/ioutil"
 	"os"
@@ -36,6 +38,8 @@ const (
 const (
 	orgsFolder  = "orgs"
 	usersFolder = "users"
+	txFile      = "tx.data"
+	txFileTemp  = "tx.tmp.data"
 )
 
 // Repository defines an API with the task server operations, orgs and users ABM, initialization, etc.
@@ -53,6 +57,15 @@ type User struct {
 	Name string
 	Key  string
 	Org  *Organization
+}
+
+type AuthenticationError struct {
+	Code string
+	Msg  string
+}
+
+func (e AuthenticationError) Error() string {
+	return e.Msg
 }
 
 func (r *Repository) NewOrg(orgName string) (*Organization, error) {
@@ -234,4 +247,99 @@ func OpenRepository(dataDir string) (*Repository, error) {
 	}
 
 	return &repo, nil
+}
+
+func (r *Repository) Authenticate(orgName, userName, key string) (User, error) {
+	org, err := r.GetOrg(orgName)
+	if err != nil {
+		return User{}, AuthenticationError{"400", "Invalid org"}
+	}
+
+	for _, u := range org.Users {
+		if u.Key == key && u.Name == userName {
+			return u, nil
+		}
+	}
+
+	return User{}, AuthenticationError{"401", "Invalid username or key"}
+}
+
+func (r *Repository) GetData(user User) ([]string, error) {
+	txFile := filepath.Join(r.Config.Get(Root), orgsFolder, user.Org.Name, usersFolder, user.Key, txFile)
+	var file *os.File
+	var err error
+	data := make([]string, 0, 50)
+
+	if file, err = os.OpenFile(txFile, os.O_RDWR|os.O_CREATE, 0600); err != nil {
+		return nil, fmt.Errorf("open tx file: %v", err)
+	}
+
+	scanner := bufio.NewScanner(file)
+
+	for scanner.Scan() {
+		data = append(data, scanner.Text())
+	}
+
+	return data, nil
+}
+
+func (r *Repository) AppendData(user User, data []string) error {
+	txFilePath := filepath.Join(r.Config.Get(Root), orgsFolder, user.Org.Name, usersFolder, user.Key, txFile)
+	txFileTempPath := filepath.Join(r.Config.Get(Root), orgsFolder, user.Org.Name, usersFolder, user.Key, txFileTemp)
+	var file *os.File
+
+	if _, err := os.Stat(txFilePath); errors.Is(err, fs.ErrNotExist) {
+		if file, err = os.OpenFile(txFileTempPath, os.O_RDWR|os.O_CREATE, 0600); err != nil {
+			return fmt.Errorf("open tx file: %v", err)
+		}
+	} else {
+		copy(txFilePath, txFileTempPath)
+		if file, err = os.OpenFile(txFileTempPath, os.O_RDWR|os.O_APPEND, 0600); err != nil {
+			return fmt.Errorf("open tx file: %v", err)
+		}
+	}
+	defer func() {
+		file.Close()
+	}()
+
+	for _, line := range data {
+		if _, err := file.Write([]byte(line)); err != nil {
+			return err
+		}
+	}
+
+	if err := file.Close(); err != nil {
+		return err
+	}
+
+	if err := os.Rename(txFileTempPath, txFilePath); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func copy(src, dst string) error {
+	sourceFileStat, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+
+	if !sourceFileStat.Mode().IsRegular() {
+		return fmt.Errorf("%s is not a regular file", src)
+	}
+
+	source, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer source.Close()
+
+	destination, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer destination.Close()
+	_, err = io.Copy(destination, source)
+	return err
 }

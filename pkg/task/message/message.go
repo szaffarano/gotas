@@ -16,6 +16,7 @@ type Message struct {
 	Payload string
 }
 
+// NewMessage parses a message
 func NewMessage(raw string) (Message, error) {
 	message := Message{
 		Header: map[string]string{},
@@ -41,6 +42,17 @@ func NewMessage(raw string) (Message, error) {
 	return message, nil
 }
 
+// NewResponseMessage is a helper method to create a simple response message
+// with an initial header
+func NewResponseMessage(code, status string) Message {
+	return Message{
+		Header: map[string]string{
+			"type":   "response",
+			"code":   code,
+			"status": status,
+		},
+	}
+}
 func (m Message) String() string {
 	var builder strings.Builder
 	for h := range m.Header {
