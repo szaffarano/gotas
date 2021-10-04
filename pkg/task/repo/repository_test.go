@@ -1,4 +1,4 @@
-// +build linux
+//go:build linux
 
 package repo
 
@@ -290,9 +290,10 @@ func TestCopy(t *testing.T) {
 		assert.Error(t, copy(dir, filepath.Join(dir, "bla", "ble")))
 	})
 
-	assert.NoError(t, os.Chmod(source.Name(), 0000))
+	t.Run("fail if source is not writable", func(t *testing.T) {
+		defer assert.NoError(t, os.Chmod(source.Name(), 06400))
 
-	t.Run("source does not have permission", func(t *testing.T) {
+		assert.NoError(t, os.Chmod(source.Name(), 0000))
 		assert.Error(t, copy(source.Name(), filepath.Join(dir, "bla")))
 	})
 }

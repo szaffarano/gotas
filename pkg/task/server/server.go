@@ -169,16 +169,16 @@ func sync(msg message.Message, cfg config.Config) message.Message {
 
 			mergeSort(clientMods, serverMods, combined)
 
-			combinedJson := combined.ComposeJson(false)
+			combinedJSON := combined.ComposeJSON(false)
 
 			// Append combined task to client and server data, if not already there.
-			newServerData = append(newServerData, (combinedJson + "\n"))
-			newClientData = append(newClientData, combinedJson)
+			newServerData = append(newServerData, (combinedJSON + "\n"))
+			newClientData = append(newClientData, combinedJSON)
 			mergeCount++
 		} else {
 			// Task not in subset, therefore can be stored unmodified.  Does not get
 			// returned to client.
-			newServerData = append(newServerData, (clientTask.ComposeJson(false) + "\n"))
+			newServerData = append(newServerData, (clientTask.ComposeJSON(false) + "\n"))
 			storeCount++
 		}
 	}
@@ -208,17 +208,8 @@ func sync(msg message.Message, cfg config.Config) message.Message {
 		log.Infof("Sync key %q still valid", newSyncKey)
 	}
 
-	// If there is outgoing data, generate payload + key.
-	payload := ""
-	if len(serverSubset) > 0 || len(newClientData) > 0 {
-		payload = generate_payload(serverSubset, newClientData, newSyncKey)
-	} else {
-		// No outgoing data, just sent the latest key.
-		payload = newSyncKey + "\n"
-	}
-
 	out := message.Message{
-		Payload: payload,
+		Payload: getResponsePayload(serverSubset, newClientData, newSyncKey),
 		Header:  make(map[string]string),
 	}
 
@@ -235,6 +226,19 @@ func sync(msg message.Message, cfg config.Config) message.Message {
 	}
 
 	return out
+}
+
+func getResponsePayload(serverSubset []task.Task, newClientData []string, newSyncKey string) string {
+	// If there is outgoing data, generate payload + key.
+	payload := ""
+	if len(serverSubset) > 0 || len(newClientData) > 0 {
+		payload = generatePayload(serverSubset, newClientData, newSyncKey)
+	} else {
+		// No outgoing data, just sent the latest key.
+		payload = newSyncKey + "\n"
+	}
+
+	return payload
 }
 
 func clientData(payload string) (tx uuid.UUID, tasks []task.Task) {
@@ -316,8 +320,8 @@ func sliceContains(slice []string, value string) bool {
 	return false
 }
 
-func findCommonAncestor(data []string, branch_point int, uuid string) (int, error) {
-	for i := branch_point; i >= 0; i++ {
+func findCommonAncestor(data []string, branchPoint int, uuid string) (int, error) {
+	for i := branchPoint; i >= 0; i++ {
 		if strings.HasPrefix(data[i], "{") {
 			t, err := task.NewTask(data[i])
 			if err != nil {
@@ -369,18 +373,18 @@ func mergeSort(left []task.Task, right []task.Task, combined task.Task) {
 	var prevLeft, idxLeft, prevRight, idxRight int
 
 	for idxLeft < len(left) && idxRight < len(right) {
-		mod_l := last_modification(dummy[idxLeft])
-		mod_r := last_modification(right[idxRight])
-		if mod_l.Before(mod_r) {
-			log.Infof("applying left %v < %v", mod_l, mod_r)
+		modLeft := lastModification(dummy[idxLeft])
+		modRigth := lastModification(right[idxRight])
+		if modLeft.Before(modRigth) {
+			log.Infof("applying left %v < %v", modLeft, modRigth)
 			patch(combined, dummy[prevLeft], left[idxLeft])
-			combined.SetDate("modified", mod_l)
+			combined.SetDate("modified", modLeft)
 			prevLeft = idxLeft
 			idxLeft++
 		} else {
-			log.Infof("applying right %v >= %v", mod_l, mod_r)
+			log.Infof("applying right %v >= %v", modLeft, modRigth)
 			patch(combined, dummy[prevRight], right[idxRight])
-			combined.SetDate("modified", mod_r)
+			combined.SetDate("modified", modRigth)
 			prevRight = idxRight
 			idxRight++
 		}
@@ -388,26 +392,26 @@ func mergeSort(left []task.Task, right []task.Task, combined task.Task) {
 
 	for idxLeft < len(left) {
 		patch(combined, dummy[prevLeft], left[idxLeft])
-		combined.SetDate("modified", last_modification(left[idxLeft]))
+		combined.SetDate("modified", lastModification(left[idxLeft]))
 		prevLeft = idxLeft
 		idxLeft++
 	}
 
 	for idxRight < len(right) {
 		patch(combined, dummy[prevRight], right[idxRight])
-		combined.SetDate("modified", last_modification(right[idxRight]))
+		combined.SetDate("modified", lastModification(right[idxRight]))
 		prevRight = idxRight
 		idxRight++
 	}
 
-	log.Infof("Merge result {2}", combined.ComposeJson(false))
+	log.Infof("Merge result {2}", combined.ComposeJSON(false))
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // Get the last modication time for a task.  Ideally this is the attribute
 // "modification".  If that is missing (pre taskwarrior 2.2.0), use the later of
 // the "entry", "end", or"start" dates.
-func last_modification(t task.Task) time.Time {
+func lastModification(t task.Task) time.Time {
 	dateFields := []string{"modified", "end", "start"}
 
 	for _, f := range dateFields {
@@ -419,11 +423,11 @@ func last_modification(t task.Task) time.Time {
 	return t.GetDate("entry")
 }
 
-func generate_payload(subset []task.Task, additions []string, key string) string {
+func generatePayload(subset []task.Task, additions []string, key string) string {
 	payload := new(strings.Builder)
 
 	for _, s := range subset {
-		payload.Write([]byte(s.ComposeJson(false)))
+		payload.Write([]byte(s.ComposeJSON(false)))
 		payload.Write([]byte("\n"))
 	}
 
@@ -446,7 +450,7 @@ func patch(base, from, to task.Task) {
 	fromAtts := from.GetAttrNames()
 	toAtts := to.GetAttrNames()
 
-	fromOnly, to_only := listDiff(fromAtts, toAtts)
+	fromOnly, toOnly := listDiff(fromAtts, toAtts)
 	commonAtts := listIntersect(fromAtts, toAtts)
 
 	// The from-only attributes must be deleted from base.
@@ -456,7 +460,7 @@ func patch(base, from, to task.Task) {
 	}
 
 	// The to-only attributes must be added to base.
-	for _, att := range to_only {
+	for _, att := range toOnly {
 		log.Infof("patch add %v=%v", att, to.Get(att))
 		base.Set(att, to.Get(att))
 	}

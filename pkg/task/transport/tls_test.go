@@ -86,7 +86,7 @@ func newTaskdClientServer(t *testing.T, srvCfgFile, clCfgFile string) (net.Conn,
 	clientCfg := newTLSConfig(t, clCfgFile)
 
 	ready := make(chan []byte)
-	srv, err := newTlsServer(srvConfig)
+	srv, err := newTLSServer(srvConfig)
 	if err != nil {
 		assert.FailNowf(t, "Error creating server: %s", err.Error())
 	}

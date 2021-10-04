@@ -12,15 +12,19 @@ import (
 	"unicode/utf8"
 )
 
+// Pig is a parser helper taken from taskserver.
 type Pig struct {
 	value string
 	idx   int
 }
 
+// NewPig creates a pig based on a string.
 func NewPig(value string) *Pig {
 	return &Pig{value: value}
 }
 
+// Skip moves the pig cursor until it finds the given rune and returns true,
+// otherwise return false and the cursor is not changed.
 func (p *Pig) Skip(ch rune) bool {
 	if decoded, size := utf8.DecodeRuneInString(p.value[p.idx:]); decoded == ch {
 		p.idx += size
@@ -30,6 +34,8 @@ func (p *Pig) Skip(ch rune) bool {
 	return false
 }
 
+// GetUntil write the pig content to the writer until it finds a given rune
+// (inclusive) and returns true, otherwise it returns false.
 func (p *Pig) GetUntil(end rune, w io.Writer) bool {
 	save := p.idx
 	prev := p.idx
@@ -59,6 +65,8 @@ func (p *Pig) GetUntil(end rune, w io.Writer) bool {
 	return p.idx > save
 }
 
+// GetQuoted removes the quote represented by the given rune and writes the
+// result to the io.writer.  In case no text is quoted, returns false.
 func (p *Pig) GetQuoted(quote rune, w io.Writer) bool {
 	ch, length := utf8.DecodeRuneInString(p.value[p.idx:])
 
@@ -95,18 +103,18 @@ func (p *Pig) GetQuoted(quote rune, w io.Writer) bool {
 			// efficient, but is only done in extreme corner cases.
 
 			j := i - (2 * len(string(quote))) // Start one character further left
-			is_escaped_quote := true
+			isEscapedQuote := true
 			for j >= start {
 				ch, length := utf8.DecodeRuneInString(p.value[j:])
 				if ch == utf8.RuneError || ch != '\\' {
 					break
 				}
 				// Toggle flag for each further backslash encountered.
-				is_escaped_quote = !is_escaped_quote
+				isEscapedQuote = !isEscapedQuote
 				j -= length
 			}
 
-			if is_escaped_quote {
+			if isEscapedQuote {
 				i += length
 				continue
 			}
@@ -124,6 +132,7 @@ func (p *Pig) GetQuoted(quote rune, w io.Writer) bool {
 	return false
 }
 
+// Eos returns true only when the end of stream was reached.
 func (p *Pig) Eos() bool {
 	ch, length := utf8.DecodeRuneInString(p.value[p.idx:])
 	if ch == '\x00' || (ch == utf8.RuneError && length == 0) {
@@ -132,6 +141,7 @@ func (p *Pig) Eos() bool {
 	return false
 }
 
+// GetRemainder returns the remaining stream.
 func (p *Pig) GetRemainder() string {
 	ch, _ := utf8.DecodeRuneInString(p.value[p.idx:])
 	if ch == utf8.RuneError {
@@ -158,10 +168,14 @@ func (p *Pig) SkipN(n int) bool {
 	return true
 }
 
+// Cursor returns the current pig position.
 func (p *Pig) Cursor() int {
 	return p.idx
 }
 
+// RestoreTo change the pig index position or doesn't do anything if the
+// requested index is out of range.  In any case returns the new (or
+// unmodified) pig position.
 func (p *Pig) RestoreTo(n int) int {
 	if n > 0 && n < len(p.value) {
 		p.idx = n
@@ -169,26 +183,32 @@ func (p *Pig) RestoreTo(n int) int {
 	return p.idx
 }
 
+// GetDigit returns the next rune as an numeric value
 func (p *Pig) GetDigit() (int, error) {
 	return p.GetNDigits(1)
 }
 
+// GetDigit2 returns the next two runes as an numeric value
 func (p *Pig) GetDigit2() (int, error) {
 	return p.GetNDigits(2)
 }
 
+// GetDigit3 returns the next three runes as an numeric value
 func (p *Pig) GetDigit3() (int, error) {
 	return p.GetNDigits(3)
 }
 
+// GetDigit4 returns the next four runes as an numeric value
 func (p *Pig) GetDigit4() (int, error) {
 	return p.GetNDigits(4)
 }
 
+// GetValue  returns the remaining stream.
 func (p *Pig) GetValue() string {
 	return p.value[p.idx:]
 }
 
+// GetNDigits returns the next N runes as an numeric value
 func (p *Pig) GetNDigits(n int) (int, error) {
 	total := 0
 	for i := 0; i < n; i++ {
@@ -206,6 +226,7 @@ func (p *Pig) GetNDigits(n int) (int, error) {
 	return result, nil
 }
 
+// GetDigits returns the remaining runes as an numeric value
 func (p *Pig) GetDigits() (int, error) {
 	save := p.idx
 
@@ -227,11 +248,14 @@ func (p *Pig) GetDigits() (int, error) {
 	return 0, fmt.Errorf("no valid number found")
 }
 
+// Peek returns the current stream value as a rune but not modifies the index
+// position.
 func (p *Pig) Peek() rune {
 	r, _ := utf8.DecodeRuneInString(p.value[p.idx:])
 	return r
 }
 
+// Decode convert encoded "[" (&open;) and "]" (&close;) values to the proper rune.
 func Decode(value string) string {
 	if !strings.Contains(value, "&") {
 		return value

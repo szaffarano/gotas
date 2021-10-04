@@ -15,10 +15,11 @@ import (
 	"github.com/szaffarano/gotas/pkg/config"
 )
 
+// Constants associated to configuration entries.
 const (
 	Confirmation = "confirmation"
 	Extensions   = "extensions"
-	IpLog        = "ip.log"
+	IPLog        = "ip.log"
 	Log          = "log"
 	PidFile      = "pid.file"
 	QueueSize    = "queue.size"
@@ -42,32 +43,39 @@ const (
 	txFileTemp  = "tx.tmp.data"
 )
 
-// Repository defines an API with the task server operations, orgs and users ABM, initialization, etc.
+// Repository defines an API with the task server operations, orgs and users
+// ABM, initialization, etc.
 type Repository struct {
 	Config config.Config
 	orgs   []Organization
 }
 
+// Organization represents an Organization grouping users.
 type Organization struct {
 	Name  string
 	Users []User
 }
 
+// User is a system user, it belongs to one organization.
 type User struct {
 	Name string
 	Key  string
 	Org  *Organization
 }
 
+// AuthenticationError represents any authentication-related error.  It
+// contains a code meant to be used as a response code.
 type AuthenticationError struct {
 	Code string
 	Msg  string
 }
 
+// Error makes AuthenticationError an error.
 func (e AuthenticationError) Error() string {
 	return e.Msg
 }
 
+// NewOrg initializes a new Organization creating the underlying file system structure.
 func (r *Repository) NewOrg(orgName string) (*Organization, error) {
 	for _, org := range r.orgs {
 		if org.Name == orgName {
@@ -89,6 +97,7 @@ func (r *Repository) NewOrg(orgName string) (*Organization, error) {
 	return &newOrg, nil
 }
 
+// GetOrg initializes an Organization reading the information from the underlying file system.
 func (r *Repository) GetOrg(orgName string) (*Organization, error) {
 	var users []User
 	root := filepath.Join(r.Config.Get(Root), orgsFolder, orgName, usersFolder)
@@ -127,6 +136,7 @@ func (r *Repository) GetOrg(orgName string) (*Organization, error) {
 	return &org, nil
 }
 
+// AddUser adds a new userr to the given Organization.
 func (r *Repository) AddUser(orgName string, userName string) (*User, error) {
 	org, err := r.GetOrg(orgName)
 	if err != nil {
@@ -207,6 +217,7 @@ func NewRepository(dataDir string) (*Repository, error) {
 	return &Repository{Config: cfg}, nil
 }
 
+// OpenRepository loads a repository from file system.
 func OpenRepository(dataDir string) (*Repository, error) {
 	configFilePath := filepath.Join(dataDir, "config")
 	cfg, err := config.Load(configFilePath)
@@ -249,6 +260,7 @@ func OpenRepository(dataDir string) (*Repository, error) {
 	return &repo, nil
 }
 
+// Authenticate verifies that the given organiozation-user-key is valid.
 func (r *Repository) Authenticate(orgName, userName, key string) (User, error) {
 	org, err := r.GetOrg(orgName)
 	if err != nil {
@@ -264,6 +276,7 @@ func (r *Repository) Authenticate(orgName, userName, key string) (User, error) {
 	return User{}, AuthenticationError{"401", "Invalid username or key"}
 }
 
+// GetData returns the tx data belonging to the given user.
 func (r *Repository) GetData(user User) ([]string, error) {
 	txFile := filepath.Join(r.Config.Get(Root), orgsFolder, user.Org.Name, usersFolder, user.Key, txFile)
 	var file *os.File
@@ -283,6 +296,7 @@ func (r *Repository) GetData(user User) ([]string, error) {
 	return data, nil
 }
 
+// AppendData add data to the tx user database.
 func (r *Repository) AppendData(user User, data []string) error {
 	txFilePath := filepath.Join(r.Config.Get(Root), orgsFolder, user.Org.Name, usersFolder, user.Key, txFile)
 	txFileTempPath := filepath.Join(r.Config.Get(Root), orgsFolder, user.Org.Name, usersFolder, user.Key, txFileTemp)

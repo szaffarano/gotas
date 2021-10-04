@@ -25,5 +25,5 @@ type Client interface {
 
 // NewServer creates a new taskd server working according to the configuration
 func NewServer(cfg config.Config) (Server, error) {
-	return newTlsServer(cfg)
+	return newTLSServer(cfg)
 }

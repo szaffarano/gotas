@@ -50,6 +50,8 @@ var (
 		"wait":         "date",
 	}
 
+	// ErrorCodes are the error codes and status descriptions sent back to the
+	// user.
 	ErrorCodes = map[string]string{
 		// 2xx Success.
 		"200": "Ok",
@@ -85,6 +87,8 @@ type Task struct {
 	data            map[string]string
 }
 
+// NewTask parses a raw string as a taskwarrior Task.
+//
 // The parsing algorithm was taken from the original taskserver code
 // https://github.com/GothenburgBitFactory/taskserver/blob/1.2.0/src/Task.cpp
 //
@@ -98,7 +102,7 @@ func NewTask(raw string) (Task, error) {
 	case '[':
 		return parseV4(raw)
 	case '{':
-		return parseJson(raw)
+		return parseJSON(raw)
 	case utf8.RuneError:
 		return Task{}, fmt.Errorf("invalid string")
 	default:
@@ -172,21 +176,21 @@ func parseLegacy(line string) (Task, error) {
 	return Task{}, fmt.Errorf("not implemented")
 }
 
-func parseJson(line string) (Task, error) {
-	lineAsJson := make(map[string]interface{})
+func parseJSON(line string) (Task, error) {
+	lineAsJSON := make(map[string]interface{})
 
-	if err := json.Unmarshal([]byte(line), &lineAsJson); err != nil {
+	if err := json.Unmarshal([]byte(line), &lineAsJSON); err != nil {
 		return Task{}, fmt.Errorf("parsing json: %v", err.Error())
 	}
 
-	uuid := fmt.Sprintf("%v", lineAsJson["uuid"])
+	uuid := fmt.Sprintf("%v", lineAsJSON["uuid"])
 	t := Task{
 		data: map[string]string{
 			"uuid": uuid,
 		},
 	}
 
-	for attrName, attrValue := range lineAsJson {
+	for attrName, attrValue := range lineAsJSON {
 		// If the attribute is a recognized column.
 		if attrType := attributeTypes[attrName]; attrType != "" {
 			if attrName == "id" {
@@ -210,42 +214,23 @@ func parseJson(line string) (Task, error) {
 				}
 				t.data[attrName] = fmt.Sprintf("%d", ts.UTC().Unix())
 			} else if attrName == "tags" {
-				switch value := attrValue.(type) {
-				case []interface{}:
-					// Tags are an array of JSON strings.
-					for _, tag := range value {
-						t.addTag(fmt.Sprintf("%v", tag))
-					}
-				case string:
-					// This is a temporary measure to accomodate a malformed JSON message
-					// from Mirakel sync.
-					// 2016-02-21 Mirakel dropped sync support in late 2015. This can be
-					//            removed in a later release.
-					t.addTag(value)
-				default:
-					return Task{}, fmt.Errorf("invalid type for field tags: %v", attrValue)
+				tags, err := parseTags(attrValue)
+				if err != nil {
+					return Task{}, err
+				}
+				for _, tag := range tags {
+					t.addTag(tag)
 				}
 			} else if attrName == "depends" {
-				switch value := attrValue.(type) {
-				case []interface{}:
-					// Dependencies can be exported as an array of strings.
-					// 2016-02-21: This will be the only option in future releases.
-					//             See other 2016-02-21 comments for details.
-					for _, dependency := range value {
-						if err := t.addDependency(fmt.Sprintf("%v", dependency)); err != nil {
-							return Task{}, err
-						}
+				dependencies, err := parseDepends(attrValue)
+				if err != nil {
+					return Task{}, err
+				}
+
+				for _, dep := range dependencies {
+					if err := t.addDependency(dep); err != nil {
+						return Task{}, err
 					}
-				case string:
-					// Dependencies can be exported as a single comma-separated string.
-					// 2016-02-21: Deprecated - see other 2016-02-21 comments for details.
-					for _, dependency := range strings.Split(value, ",") {
-						if err := t.addDependency(fmt.Sprintf("%v", dependency)); err != nil {
-							return Task{}, err
-						}
-					}
-				default:
-					return Task{}, fmt.Errorf("depends type not match: %v", value)
 				}
 			} else {
 				// Other types are simply added.
@@ -256,33 +241,13 @@ func parseJson(line string) (Task, error) {
 			// UDA orphans and annotations do not have columns.
 
 			if attrName == "annotations" {
-				// Annotations are an array of JSON objects with 'entry' and
-				// 'description' values and must be converted.
-				if annotations, ok := attrValue.([]interface{}); ok {
-					for _, item := range annotations {
-						if annotation, ok := item.(map[string]interface{}); ok {
-							when, ok := annotation["entry"]
-							if !ok {
-								return Task{}, fmt.Errorf("annotation is missing an entry date: %v", annotation)
-							}
-							what, ok := annotation["description"]
-							if !ok {
-								return Task{}, fmt.Errorf("annotation is missing a description: %v", annotation)
-							}
+				entries, err := parseAnnoations(attrValue)
+				if err != nil {
+					return Task{}, err
+				}
 
-							ts, err := time.Parse(DateLayout, fmt.Sprintf("%v", when))
-							if err != nil {
-								return Task{}, fmt.Errorf("invalid date format %q: %v", when, err.Error())
-							}
-							name := fmt.Sprintf("annotation_%v", ts.UTC().Unix())
-
-							t.data[name] = fmt.Sprintf("%v", what)
-						} else {
-							return Task{}, fmt.Errorf("annotations type inside list does not match: %T", attrValue)
-						}
-					}
-				} else {
-					return Task{}, fmt.Errorf("annotations type does not match: %T", attrValue)
+				for _, e := range entries {
+					t.data[e[0]] = e[1]
 				}
 			} else { // UDA Orphan - must be preserved.
 				t.data[attrName] = fmt.Sprintf("%v", attrValue)
@@ -290,6 +255,84 @@ func parseJson(line string) (Task, error) {
 		}
 	}
 	return t, nil
+}
+
+func parseTags(attrValue interface{}) ([]string, error) {
+	var tags []string
+	switch value := attrValue.(type) {
+	case []interface{}:
+		// Tags are an array of JSON strings.
+		for _, tag := range value {
+			tags = append(tags, fmt.Sprintf("%v", tag))
+		}
+	case string:
+		// This is a temporary measure to accommodate a malformed JSON message
+		// from Mirakel sync.
+		// 2016-02-21 Mirakel dropped sync support in late 2015. This can be
+		//            removed in a later release.
+		tags = append(tags, value)
+	default:
+		return nil, fmt.Errorf("invalid type for field tags: %v", attrValue)
+	}
+	return tags, nil
+}
+
+func parseDepends(attrValue interface{}) ([]string, error) {
+	var deps []string
+	switch value := attrValue.(type) {
+	case []interface{}:
+		// Dependencies can be exported as an array of strings.
+		// 2016-02-21: This will be the only option in future releases.
+		//             See other 2016-02-21 comments for details.
+		for _, dependency := range value {
+			deps = append(deps, fmt.Sprintf("%v", dependency))
+		}
+	case string:
+		// Dependencies can be exported as a single comma-separated string.
+		// 2016-02-21: Deprecated - see other 2016-02-21 comments for details.
+		for _, dependency := range strings.Split(value, ",") {
+			deps = append(deps, fmt.Sprintf("%v", dependency))
+		}
+	default:
+		return nil, fmt.Errorf("depends type not match: %v", value)
+	}
+	return deps, nil
+}
+
+func parseAnnoations(attrValue interface{}) ([][]string, error) {
+	// Annotations are an array of JSON objects with 'entry' and
+	// 'description' values and must be converted.
+	var entries [][]string
+	if annotations, ok := attrValue.([]interface{}); ok {
+		for _, item := range annotations {
+			if annotation, ok := item.(map[string]interface{}); ok {
+				entry := make([]string, 2)
+
+				when, ok := annotation["entry"]
+				if !ok {
+					return nil, fmt.Errorf("annotation is missing an entry date: %v", annotation)
+				}
+				what, ok := annotation["description"]
+				if !ok {
+					return nil, fmt.Errorf("annotation is missing a description: %v", annotation)
+				}
+
+				ts, err := time.Parse(DateLayout, fmt.Sprintf("%v", when))
+				if err != nil {
+					return nil, fmt.Errorf("invalid date format %q: %v", when, err.Error())
+				}
+				name := fmt.Sprintf("annotation_%v", ts.UTC().Unix())
+
+				entry[0] = name
+				entry[1] = fmt.Sprintf("%v", what)
+				entries = append(entries, entry)
+			} else {
+				return nil, fmt.Errorf("annotations type inside list does not match: %T", attrValue)
+			}
+		}
+		return entries, nil
+	}
+	return nil, fmt.Errorf("annotations type does not match: %T", attrValue)
 }
 
 func determineVersion(line string) int {
@@ -303,15 +346,15 @@ func determineVersion(line string) int {
 	//
 	// Scan for the hyphens in the uuid, the following space, and a valid status
 	// character.
-	var validUuid bool
+	var validUUID bool
 	var status byte
 	if len(line) > 36 {
 		_, err := uuid.Parse(line[0:36])
 		status = line[37]
-		validUuid = err == nil
+		validUUID = err == nil
 	}
 
-	if validUuid && (status == '-' || status == '+' || status == 'X' || status == 'r') {
+	if validUUID && (status == '-' || status == '+' || status == 'X' || status == 'r') {
 		// Version 3 looks like:
 		//
 		//   uuid status [tags] [attributes] [annotations] description\n
@@ -322,9 +365,8 @@ func determineVersion(line string) int {
 		annoDesc := strings.Index(string(line[attsAnno+1:]), "] ")
 		if tagAtts != -1 && attsAnno != -1 && annoDesc != -1 {
 			return 3
-		} else {
-			return 2
 		}
+		return 2
 	} else if line[0] == '[' && line[len(line)-1] == ']' && strings.Contains(line, `uuid:"`) {
 		// Version 4 looks like:
 		//
@@ -358,14 +400,18 @@ func determineVersion(line string) int {
 	return 0
 }
 
+// Get returns the given task attribute or the zero value if it doesn't exists.
 func (t *Task) Get(name string) string {
 	return t.data[name]
 }
 
+// Set sets or overrides the given attribute to the task.
 func (t *Task) Set(name, value string) {
 	t.data[name] = value
 }
 
+// GetInt returns the given task attribute as an integer or the zero value if it
+// doesn't exists or it can't be parsed as integer.
 func (t *Task) GetInt(name string) int {
 	if value, ok := t.data[name]; ok {
 		num, err := strconv.Atoi(value)
@@ -377,6 +423,8 @@ func (t *Task) GetInt(name string) int {
 	return 0
 }
 
+// GetDate returns the given task attribute as an UTC date or the zero value if it
+// doesn't exists or it can't be parsed as a date.
 func (t *Task) GetDate(name string) time.Time {
 	if value, ok := t.data[name]; ok {
 		epoch, err := strconv.Atoi(value)
@@ -388,15 +436,19 @@ func (t *Task) GetDate(name string) time.Time {
 	return time.Time{}
 }
 
+// SetDate sets the given task attribute.
 func (t *Task) SetDate(name string, d time.Time) {
 	t.data[name] = fmt.Sprintf("%v", d.Unix())
 }
 
+// Has returns  true only if the task has the given attribute, it doesn't
+// matter if it's set with the zero value.
 func (t *Task) Has(name string) bool {
 	_, ok := t.data[name]
 	return ok
 }
 
+// GetAttrNames returns the list of task attribute names.
 func (t *Task) GetAttrNames() []string {
 	attrs := make([]string, 0, len(t.data))
 	for k := range t.data {
@@ -405,11 +457,16 @@ func (t *Task) GetAttrNames() []string {
 	return attrs
 }
 
+// Remove removes an attribute or does not do anything in case it doesn't
+// exist.
 func (t *Task) Remove(name string) {
 	delete(t.data, name)
 }
 
-func (t *Task) ComposeJson(decorate bool) string {
+// ComposeJSON converts a given task to its JSON representation.  Decorate
+// parameter allows including the "id" task attribute.
+// TODO it seems not to be useful this attribute, I'd say to remove it.
+func (t *Task) ComposeJSON(decorate bool) string {
 	filtered := make(map[string]interface{})
 
 	for attrName, attrValue := range t.data {

@@ -11,7 +11,7 @@ import (
 type piggyWriter string
 
 func (c piggyWriter) Write(buf []byte) (int, error) {
-	return 0, fmt.Errorf("bum!")
+	return 0, fmt.Errorf("bum")
 }
 
 func TestGetQuoted(t *testing.T) {

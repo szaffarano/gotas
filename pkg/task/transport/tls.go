@@ -13,7 +13,7 @@ import (
 )
 
 // NewTlsServer creates a new tls-based server
-func newTlsServer(cfg config.Config) (Server, error) {
+func newTLSServer(cfg config.Config) (Server, error) {
 	var ca []byte
 	var cert tls.Certificate
 	var err error

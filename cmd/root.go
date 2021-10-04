@@ -21,6 +21,7 @@ type flags struct {
 	taskData string
 }
 
+// Execute runs the root command
 func Execute(version string) {
 	var flags flags
 
