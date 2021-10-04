@@ -110,14 +110,15 @@ func sync(msg message.Message, cfg config.Config) message.Message {
 
 	// TODO verify redirect
 
-	tx, tasks := clientData(msg.Payload)
+	tx, clientData := getClientData(msg.Payload)
 	serverData, err := repository.GetData(loggedUser)
 	if err != nil {
 		log.Errorf("Error reading user dada: %v", err)
 		return message.NewResponseMessage("500", "Error reading user data")
 	}
+	log.Infof("Loaded %v records", len(serverData))
 
-	branchPoint := findBranchPoint(serverData, tx.String())
+	branchPoint := findBranchPoint(serverData, tx)
 	if branchPoint == -1 {
 		return message.NewResponseMessage("500", "Could not find the last sync transaction. Did you skip the 'task sync init' requirement?")
 	}
@@ -134,7 +135,7 @@ func sync(msg message.Message, cfg config.Config) message.Message {
 	var storeCount, mergeCount int
 
 	// For each incoming task...
-	for _, clientTask := range tasks {
+	for _, clientTask := range clientData {
 		// TODO Validate task?
 		uuid := clientTask.Get("uuid")
 
@@ -150,13 +151,12 @@ func sync(msg message.Message, cfg config.Config) message.Message {
 
 			// Find common ancestor, prior to branch point
 			commonAncestor, err := findCommonAncestor(serverData, branchPoint, uuid)
-			log.Infof("Common ancestor: %v", commonAncestor)
 			if err != nil {
 				return message.NewResponseMessage("500", err.Error())
 			}
 
 			// List the client-side modifications.
-			clientMods := getClientMods(tasks, uuid)
+			clientMods := getClientMods(clientData, uuid)
 
 			// List the server-side modifications.
 			serverMods, err := getServerMods(serverData, uuid, commonAncestor)
@@ -244,8 +244,7 @@ func getResponsePayload(serverSubset []task.Task, newClientData []string, newSyn
 	return payload
 }
 
-func clientData(payload string) (tx uuid.UUID, tasks []task.Task) {
-	var err error
+func getClientData(payload string) (tx string, tasks []task.Task) {
 	scanner := bufio.NewScanner(strings.NewReader(payload))
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -260,8 +259,10 @@ func clientData(payload string) (tx uuid.UUID, tasks []task.Task) {
 				tasks = append(tasks, t)
 
 			} else {
-				if tx, err = uuid.Parse(line); err != nil {
+				if parsed, err := uuid.Parse(line); err != nil {
 					log.Warnf("Error parsing UUID: %v", err)
+				} else {
+					tx = parsed.String()
 				}
 			}
 		}
@@ -271,7 +272,7 @@ func clientData(payload string) (tx uuid.UUID, tasks []task.Task) {
 
 func findBranchPoint(data []string, key string) int {
 	// A missing key is either a first-time sync, or a request to get all data.
-	if key == "" || key == "00000000-0000-0000-0000-000000000000" {
+	if key == "" {
 		return 0
 	}
 
@@ -300,6 +301,8 @@ func extractSubset(data []string, branchPoint int) ([]task.Task, error) {
 			}
 		}
 
+		log.Infof("Subset %v tasks", len(tasks))
+
 		return tasks, nil
 	}
 	return nil, fmt.Errorf("invalid branchPoint: %d for %d data length", branchPoint, len(data))
@@ -324,7 +327,7 @@ func sliceContains(slice []string, value string) bool {
 }
 
 func findCommonAncestor(data []string, branchPoint int, uuid string) (int, error) {
-	for i := branchPoint; i >= 0; i++ {
+	for i := branchPoint; i >= 0; i-- {
 		if strings.HasPrefix(data[i], "{") {
 			t, err := task.NewTask(data[i])
 			if err != nil {
