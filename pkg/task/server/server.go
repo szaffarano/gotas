@@ -53,6 +53,9 @@ func receiveMessage(client io.Reader) (msg message.Message, err error) {
 
 	// TODO verify request limit
 
+	log.Info("------------------")
+	log.Info(string(buffer))
+	log.Info("------------------")
 	return message.NewMessage(string(buffer))
 }
 
