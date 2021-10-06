@@ -10,15 +10,13 @@ import (
 
 	"github.com/apex/log"
 	"github.com/google/uuid"
-	"github.com/szaffarano/gotas/pkg/config"
 	"github.com/szaffarano/gotas/pkg/task/message"
 	"github.com/szaffarano/gotas/pkg/task/repo"
 	"github.com/szaffarano/gotas/pkg/task/task"
-	"github.com/szaffarano/gotas/pkg/task/transport"
 )
 
 // Process processes a taskd client request
-func Process(client transport.Client, cfg config.Config) {
+func Process(client io.ReadWriteCloser, repository *repo.Repository) {
 	defer client.Close()
 
 	var msg, resp message.Message
@@ -29,7 +27,7 @@ func Process(client transport.Client, cfg config.Config) {
 		return
 	}
 
-	resp = processMessage(msg, cfg)
+	resp = processMessage(msg, repository)
 
 	if err := replyMessage(client, resp); err != nil {
 		log.Errorf("Error sending response message: %v", err)
@@ -59,10 +57,10 @@ func receiveMessage(client io.Reader) (msg message.Message, err error) {
 	return message.NewMessage(string(buffer))
 }
 
-func processMessage(msg message.Message, cfg config.Config) (resp message.Message) {
+func processMessage(msg message.Message, repository *repo.Repository) (resp message.Message) {
 	switch t := msg.Header["type"]; t {
 	case "sync":
-		return sync(msg, cfg)
+		return sync(msg, repository)
 	default:
 		return message.NewResponseMessage("500", fmt.Sprintf("unknown message type: %q", t))
 	}
@@ -82,19 +80,14 @@ func replyMessage(client io.Writer, resp message.Message) error {
 	return nil
 }
 
-func sync(msg message.Message, cfg config.Config) message.Message {
-	var loggedUser repo.User
+func sync(msg message.Message, repository *repo.Repository) message.Message {
+	var loggedUser task.User
+	var err error
 	userName := msg.Header["user"]
 	key := msg.Header["key"]
 	orgName := msg.Header["org"]
 
 	// verify user credentials
-	repository, err := repo.OpenRepository(cfg.Get(repo.Root))
-	if err != nil {
-		log.Errorf("Error opening the repository: %v", err)
-		return message.NewResponseMessage("500", "Error opening the repository")
-	}
-
 	if loggedUser, err = repository.Authenticate(orgName, userName, key); err != nil {
 		code := "500"
 		if authError, ok := err.(repo.AuthenticationError); ok {
@@ -111,7 +104,7 @@ func sync(msg message.Message, cfg config.Config) message.Message {
 	// TODO verify redirect
 
 	tx, clientData := getClientData(msg.Payload)
-	serverData, err := repository.GetData(loggedUser)
+	serverData, err := repository.Read(loggedUser)
 	if err != nil {
 		log.Errorf("Error reading user dada: %v", err)
 		return message.NewResponseMessage("500", "Error reading user data")
@@ -172,7 +165,7 @@ func sync(msg message.Message, cfg config.Config) message.Message {
 
 			mergeSort(clientMods, serverMods, combined)
 
-			combinedJSON := combined.ComposeJSON(false)
+			combinedJSON := combined.ComposeJSON()
 
 			// Append combined task to client and server data, if not already there.
 			newServerData = append(newServerData, (combinedJSON + "\n"))
@@ -181,7 +174,7 @@ func sync(msg message.Message, cfg config.Config) message.Message {
 		} else {
 			// Task not in subset, therefore can be stored unmodified.  Does not get
 			// returned to client.
-			newServerData = append(newServerData, (clientTask.ComposeJSON(false) + "\n"))
+			newServerData = append(newServerData, (clientTask.ComposeJSON() + "\n"))
 			storeCount++
 		}
 	}
@@ -198,7 +191,7 @@ func sync(msg message.Message, cfg config.Config) message.Message {
 
 		// Append new_server_data to file.
 		// append_server_data(org, password, newServerData)
-		if err := repository.AppendData(loggedUser, newServerData); err != nil {
+		if err := repository.Append(loggedUser, newServerData); err != nil {
 			return message.NewResponseMessage("500", err.Error())
 		}
 	} else {
@@ -220,11 +213,11 @@ func sync(msg message.Message, cfg config.Config) message.Message {
 	if len(serverSubset) > 0 || len(newClientData) > 0 || len(newServerData) > 0 {
 		log.Infof("returning 200")
 		out.Header["code"] = "200"
-		out.Header["status"] = task.ErrorCodes["200"]
+		out.Header["status"] = task.ErrorCodes[200]
 	} else {
 		log.Infof("returning 201")
 		out.Header["code"] = "201"
-		out.Header["status"] = task.ErrorCodes["201"]
+		out.Header["status"] = task.ErrorCodes[201]
 		log.Infof("No change")
 	}
 
@@ -410,7 +403,7 @@ func mergeSort(left []task.Task, right []task.Task, combined task.Task) {
 		idxRight++
 	}
 
-	log.Infof("Merge result {2}", combined.ComposeJSON(false))
+	log.Infof("Merge result {2}", combined.ComposeJSON())
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -433,7 +426,7 @@ func generatePayload(subset []task.Task, additions []string, key string) string 
 	payload := new(strings.Builder)
 
 	for _, s := range subset {
-		payload.Write([]byte(s.ComposeJSON(false)))
+		payload.Write([]byte(s.ComposeJSON()))
 		payload.Write([]byte("\n"))
 	}
 

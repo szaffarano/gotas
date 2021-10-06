@@ -13,27 +13,7 @@ import (
 	"github.com/apex/log"
 	"github.com/google/uuid"
 	"github.com/szaffarano/gotas/pkg/config"
-)
-
-// Constants associated to configuration entries.
-const (
-	Confirmation = "confirmation"
-	Extensions   = "extensions"
-	IPLog        = "ip.log"
-	Log          = "log"
-	PidFile      = "pid.file"
-	QueueSize    = "queue.size"
-	RequestLimit = "request.limit"
-	Root         = "root"
-	BindAddress  = "server"
-	Trust        = "trust"
-	Verbose      = "verbose"
-	ClientCert   = "client.cert"
-	ClientKey    = "client.key"
-	ServerKey    = "server.key"
-	ServerCert   = "server.cert"
-	ServerCrl    = "server.crl"
-	CaCert       = "ca.cert"
+	"github.com/szaffarano/gotas/pkg/task/task"
 )
 
 const (
@@ -46,21 +26,19 @@ const (
 // Repository defines an API with the task server operations, orgs and users
 // ABM, initialization, etc.
 type Repository struct {
-	Config config.Config
-	orgs   []Organization
+	cfg  config.Config
+	orgs []task.Organization
 }
 
-// Organization represents an Organization grouping users.
-type Organization struct {
-	Name  string
-	Users []User
+// Authenticator exposes the method needed to deal with security functionality
+type Authenticator interface {
+	Authenticate(org, user, key string) (task.User, error)
 }
 
-// User is a system user, it belongs to one organization.
-type User struct {
-	Name string
-	Key  string
-	Org  *Organization
+// ReadAppender groups the basic Read and Append taskd functionality.
+type ReadAppender interface {
+	Read(user task.User) ([]string, error)
+	Append(user task.User, data []string)
 }
 
 // AuthenticationError represents any authentication-related error.  It
@@ -76,14 +54,14 @@ func (e AuthenticationError) Error() string {
 }
 
 // NewOrg initializes a new Organization creating the underlying file system structure.
-func (r *Repository) NewOrg(orgName string) (*Organization, error) {
+func (r *Repository) NewOrg(orgName string) (*task.Organization, error) {
 	for _, org := range r.orgs {
 		if org.Name == orgName {
-			return nil, fmt.Errorf("Organization %q already exists", orgName)
+			return nil, fmt.Errorf("organization %q already exists", orgName)
 		}
 	}
 
-	newOrgPath := filepath.Join(r.Config.Get(Root), orgsFolder, orgName)
+	newOrgPath := filepath.Join(r.cfg.Get(task.Root), orgsFolder, orgName)
 	if err := os.Mkdir(newOrgPath, 0775); err != nil {
 		return nil, fmt.Errorf("creating new org: %v", err)
 	}
@@ -91,16 +69,16 @@ func (r *Repository) NewOrg(orgName string) (*Organization, error) {
 		return nil, fmt.Errorf("creating users dir under org: %v", err)
 	}
 
-	newOrg := Organization{Name: orgName}
+	newOrg := task.Organization{Name: orgName}
 	r.orgs = append(r.orgs, newOrg)
 
 	return &newOrg, nil
 }
 
 // GetOrg initializes an Organization reading the information from the underlying file system.
-func (r *Repository) GetOrg(orgName string) (*Organization, error) {
-	var users []User
-	root := filepath.Join(r.Config.Get(Root), orgsFolder, orgName, usersFolder)
+func (r *Repository) GetOrg(orgName string) (*task.Organization, error) {
+	var users []task.User
+	root := filepath.Join(r.cfg.Get(task.Root), orgsFolder, orgName, usersFolder)
 
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -113,7 +91,7 @@ func (r *Repository) GetOrg(orgName string) (*Organization, error) {
 			}
 			userConfigPath := filepath.Join(path, "config")
 			if userConfig, err := config.Load(userConfigPath); err == nil {
-				users = append(users, User{
+				users = append(users, task.User{
 					Key:  d.Name(),
 					Name: userConfig.Get("user"),
 				})
@@ -129,7 +107,7 @@ func (r *Repository) GetOrg(orgName string) (*Organization, error) {
 		return nil, fmt.Errorf("getting users: %v", err)
 	}
 
-	org := Organization{Name: orgName, Users: users}
+	org := task.Organization{Name: orgName, Users: users}
 	for idx := range users {
 		users[idx].Org = &org
 	}
@@ -137,7 +115,7 @@ func (r *Repository) GetOrg(orgName string) (*Organization, error) {
 }
 
 // AddUser adds a new userr to the given Organization.
-func (r *Repository) AddUser(orgName string, userName string) (*User, error) {
+func (r *Repository) AddUser(orgName string, userName string) (*task.User, error) {
 	org, err := r.GetOrg(orgName)
 	if err != nil {
 		return nil, err
@@ -145,12 +123,12 @@ func (r *Repository) AddUser(orgName string, userName string) (*User, error) {
 
 	for _, u := range org.Users {
 		if u.Name == userName {
-			return nil, fmt.Errorf("User %q already exists", userName)
+			return nil, fmt.Errorf("user %q already exists", userName)
 		}
 	}
 
 	key := uuid.New().String()
-	userPath := filepath.Join(r.Config.Get(Root), orgsFolder, org.Name, usersFolder, key)
+	userPath := filepath.Join(r.cfg.Get(task.Root), orgsFolder, org.Name, usersFolder, key)
 	if err := os.Mkdir(userPath, 0755); err != nil {
 		return nil, fmt.Errorf("creating user home: %v", err)
 	}
@@ -164,7 +142,7 @@ func (r *Repository) AddUser(orgName string, userName string) (*User, error) {
 		return nil, fmt.Errorf("saving user config: %v", err)
 	}
 
-	return &User{
+	return &task.User{
 		Name: userName,
 		Key:  key,
 		Org:  org,
@@ -201,20 +179,20 @@ func NewRepository(dataDir string) (*Repository, error) {
 	}
 
 	// set default values
-	cfg.SetBool(Confirmation, true)
-	cfg.Set(Log, filepath.Join(os.TempDir(), "taskd.log"))
-	cfg.Set(PidFile, filepath.Join(os.TempDir(), "taskd.pid"))
-	cfg.SetInt(QueueSize, 10)
-	cfg.SetInt(RequestLimit, 1048576)
-	cfg.Set(Root, dataDir)
-	cfg.Set(Trust, "strict")
-	cfg.SetBool(Verbose, true)
+	cfg.SetBool(task.Confirmation, true)
+	cfg.Set(task.Log, filepath.Join(os.TempDir(), "taskd.log"))
+	cfg.Set(task.PidFile, filepath.Join(os.TempDir(), "taskd.pid"))
+	cfg.SetInt(task.QueueSize, 10)
+	cfg.SetInt(task.RequestLimit, 1048576)
+	cfg.Set(task.Root, dataDir)
+	cfg.Set(task.Trust, "strict")
+	cfg.SetBool(task.Verbose, true)
 
 	if err := config.Save(cfg); err != nil {
 		return nil, err
 	}
 
-	return &Repository{Config: cfg}, nil
+	return &Repository{cfg: cfg}, nil
 }
 
 // OpenRepository loads a repository from file system.
@@ -247,7 +225,7 @@ func OpenRepository(dataDir string) (*Repository, error) {
 		return nil, fmt.Errorf("opening repository: %v", err)
 	}
 
-	repo := Repository{Config: cfg}
+	repo := Repository{cfg: cfg}
 	for _, orgName := range orgsToAdd {
 		org, err := repo.GetOrg(orgName)
 		if err != nil {
@@ -261,10 +239,10 @@ func OpenRepository(dataDir string) (*Repository, error) {
 }
 
 // Authenticate verifies that the given organiozation-user-key is valid.
-func (r *Repository) Authenticate(orgName, userName, key string) (User, error) {
+func (r *Repository) Authenticate(orgName, userName, key string) (task.User, error) {
 	org, err := r.GetOrg(orgName)
 	if err != nil {
-		return User{}, AuthenticationError{"400", "Invalid org"}
+		return task.User{}, AuthenticationError{"400", "Invalid org"}
 	}
 
 	for _, u := range org.Users {
@@ -273,12 +251,12 @@ func (r *Repository) Authenticate(orgName, userName, key string) (User, error) {
 		}
 	}
 
-	return User{}, AuthenticationError{"401", "Invalid username or key"}
+	return task.User{}, AuthenticationError{"401", "Invalid username or key"}
 }
 
-// GetData returns the tx data belonging to the given user.
-func (r *Repository) GetData(user User) ([]string, error) {
-	txFile := filepath.Join(r.Config.Get(Root), orgsFolder, user.Org.Name, usersFolder, user.Key, txFile)
+// Read returns all the transaction information belonging to the given user.
+func (r *Repository) Read(user task.User) ([]string, error) {
+	txFile := filepath.Join(r.cfg.Get(task.Root), orgsFolder, user.Org.Name, usersFolder, user.Key, txFile)
 	var file *os.File
 	var err error
 	data := make([]string, 0, 50)
@@ -296,10 +274,10 @@ func (r *Repository) GetData(user User) ([]string, error) {
 	return data, nil
 }
 
-// AppendData add data to the tx user database.
-func (r *Repository) AppendData(user User, data []string) error {
-	txFilePath := filepath.Join(r.Config.Get(Root), orgsFolder, user.Org.Name, usersFolder, user.Key, txFile)
-	txFileTempPath := filepath.Join(r.Config.Get(Root), orgsFolder, user.Org.Name, usersFolder, user.Key, txFileTemp)
+// Append add data at the end of the transaction user database.
+func (r *Repository) Append(user task.User, data []string) error {
+	txFilePath := filepath.Join(r.cfg.Get(task.Root), orgsFolder, user.Org.Name, usersFolder, user.Key, txFile)
+	txFileTempPath := filepath.Join(r.cfg.Get(task.Root), orgsFolder, user.Org.Name, usersFolder, user.Key, txFileTemp)
 	var file *os.File
 
 	if _, err := os.Stat(txFilePath); errors.Is(err, fs.ErrNotExist) {
@@ -334,6 +312,10 @@ func (r *Repository) AppendData(user User, data []string) error {
 	}
 
 	return nil
+}
+
+func (r *Repository) String() string {
+	return r.cfg.Get(task.Root)
 }
 
 func copy(src, dst string) error {

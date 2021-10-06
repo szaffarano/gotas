@@ -130,7 +130,7 @@ func TestNewTask(t *testing.T) {
 		task, err := NewTask(readFile(t, "task-2.json"))
 		assert.Nil(t, err)
 
-		json := task.ComposeJSON(false)
+		json := task.ComposeJSON()
 		task2, err := NewTask(json)
 		assert.Nil(t, err)
 

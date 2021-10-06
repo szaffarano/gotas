@@ -7,7 +7,9 @@ import (
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/szaffarano/gotas/pkg/config"
+	"github.com/szaffarano/gotas/pkg/task/repo"
 	"github.com/szaffarano/gotas/pkg/task/server"
+	"github.com/szaffarano/gotas/pkg/task/task"
 	"github.com/szaffarano/gotas/pkg/task/transport"
 )
 
@@ -36,6 +38,10 @@ func serverCmd() *cobra.Command {
 			}()
 
 			// TODO implement graceful shutdown
+			repository, err := repo.OpenRepository(cfg.Get(task.Root))
+			if err != nil {
+				return fmt.Errorf("opening the repository: %v", err)
+			}
 
 			for {
 				client, err := transp.NextClient()
@@ -43,7 +49,7 @@ func serverCmd() *cobra.Command {
 					log.Errorf("Error receiving client: %s", err.Error())
 				}
 
-				go server.Process(client, cfg)
+				go server.Process(client, repository)
 			}
 		},
 	}

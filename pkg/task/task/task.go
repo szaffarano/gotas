@@ -1,6 +1,5 @@
-// task defines the common model used by taskd
+// Package task defines the common model used by taskd
 // in particular the Task type as well some constants and definitions
-
 package task
 
 import (
@@ -22,6 +21,27 @@ const (
 	// are for the client-side (task warrior).  At least 2.3.0+ task warrior
 	// clients, always send dates in this format.
 	DateLayout = "20060102T150405Z"
+)
+
+// Constants associated to configuration entries.
+const (
+	Confirmation = "confirmation"
+	Extensions   = "extensions"
+	IPLog        = "ip.log"
+	Log          = "log"
+	PidFile      = "pid.file"
+	QueueSize    = "queue.size"
+	RequestLimit = "request.limit"
+	Root         = "root"
+	BindAddress  = "server"
+	Trust        = "trust"
+	Verbose      = "verbose"
+	ClientCert   = "client.cert"
+	ClientKey    = "client.key"
+	ServerKey    = "server.key"
+	ServerCert   = "server.cert"
+	ServerCrl    = "server.crl"
+	CaCert       = "ca.cert"
 )
 
 var (
@@ -52,32 +72,32 @@ var (
 
 	// ErrorCodes are the error codes and status descriptions sent back to the
 	// user.
-	ErrorCodes = map[string]string{
+	ErrorCodes = map[int]string{
 		// 2xx Success.
-		"200": "Ok",
-		"201": "No change",
-		"202": "Decline",
+		200: "Ok",
+		201: "No change",
+		202: "Decline",
 
 		// 3xx Partial success.
-		"300": "Deprecated request type",
-		"301": "Redirect",
-		"302": "Retry",
+		300: "Deprecated request type",
+		301: "Redirect",
+		302: "Retry",
 
 		// 4xx Client error.
 		// "401": "Failure",
-		"400": "Malformed data",
-		"401": "Unsupported encoding",
-		"420": "Server temporarily unavailable",
-		"430": "Access denied",
-		"431": "Account suspended",
-		"432": "Account terminated",
+		400: "Malformed data",
+		401: "Unsupported encoding",
+		420: "Server temporarily unavailable",
+		430: "Access denied",
+		431: "Account suspended",
+		432: "Account terminated",
 
 		// 5xx Server error.
-		"500": "Syntax error in request",
-		"501": "Syntax error, illegal parameters",
-		"502": "Not implemented",
-		"503": "Command parameter not implemented",
-		"504": "Request too big",
+		500: "Syntax error in request",
+		501: "Syntax error, illegal parameters",
+		502: "Not implemented",
+		503: "Command parameter not implemented",
+		504: "Request too big",
 	}
 )
 
@@ -85,6 +105,19 @@ var (
 type Task struct {
 	annotationCount int
 	data            map[string]string
+}
+
+// Organization represents an Organization grouping users.
+type Organization struct {
+	Name  string
+	Users []User
+}
+
+// User is a system user, it belongs to one organization.
+type User struct {
+	Name string
+	Key  string
+	Org  *Organization
 }
 
 // NewTask parses a raw string as a taskwarrior Task.
@@ -465,16 +498,12 @@ func (t *Task) Remove(name string) {
 
 // ComposeJSON converts a given task to its JSON representation.  Decorate
 // parameter allows including the "id" task attribute.
-// TODO it seems not to be useful this attribute, I'd say to remove it.
-func (t *Task) ComposeJSON(decorate bool) string {
+func (t *Task) ComposeJSON() string {
 	filtered := make(map[string]interface{})
 
 	for attrName, attrValue := range t.data {
 		attrType := attributeTypes[attrName]
 
-		if attrName == "id" && decorate {
-			filtered[attrName] = attrValue
-		}
 		if strings.HasPrefix(attrName, "annotation_") {
 			epoch, err := strconv.Atoi(attrName[len("annotation_"):])
 			if err != nil {

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/szaffarano/gotas/pkg/task/task"
 )
 
 func TestNewRepository(t *testing.T) {
@@ -85,8 +86,8 @@ func TestOpenRepository(t *testing.T) {
 
 		assert.Nil(t, err)
 		assert.Equal(t, 2, len(repo.orgs))
-		assert.Equal(t, "testdata/repo_one", repo.Config.Get(Root))
-		assert.True(t, repo.Config.GetBool(Confirmation))
+		assert.Equal(t, "testdata/repo_one", repo.cfg.Get(task.Root))
+		assert.True(t, repo.cfg.GetBool(task.Confirmation))
 	})
 
 	t.Run("open repository fails with non existent data directory", func(t *testing.T) {
@@ -239,12 +240,12 @@ func TestGetData(t *testing.T) {
 	user, err := repo.Authenticate("Public", "noeh", "53938cd8-b72e-4c2a-9fb5-3cd183cf1fa7")
 	assert.Nil(t, err)
 
-	data, err := repo.GetData(user)
+	data, err := repo.Read(user)
 	assert.Nil(t, err)
 	assert.NotNil(t, data)
 
 	user.Key = "invalid"
-	data, err = repo.GetData(user)
+	data, err = repo.Read(user)
 	assert.Nil(t, data)
 	assert.NotNil(t, err)
 }
@@ -265,8 +266,8 @@ func TestAppendData(t *testing.T) {
 		"hello",
 		"world",
 	}
-	assert.NoError(t, repo.AppendData(user, data))
-	assert.NoError(t, repo.AppendData(user, data))
+	assert.NoError(t, repo.Append(user, data))
+	assert.NoError(t, repo.Append(user, data))
 }
 
 func TestCopy(t *testing.T) {
