@@ -1,0 +1,8 @@
+code: 200
+status: Ok
+
+{"description":"Task 1","due":"20211009T220000Z","entry":"20211009T112536Z","modified":"20211009T113736Z","status":"pending","tags":["T2","tagTwo"],"uuid":"e346004f-6ebb-4507-8f21-0ba2b8f263d8","annotations":[{"entry":"20211009T113736Z","description":"New annotation"}]}
+{"customField":"CF1","description":"Task 1","due":"20211009T220000Z","entry":"20211009T112536Z","modified":"20211009T113736Z","status":"pending","tags":["T2","tagTwo"],"uuid":"e346004f-6ebb-4507-8f21-0ba2b8f263d8","annotations":[{"entry":"20211009T113736Z","description":"New annotation"}]}
+7899660c-f366-4a2b-b6d5-f04722f45add
+
+

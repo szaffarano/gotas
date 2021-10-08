@@ -580,3 +580,17 @@ func (t *Task) addDependency(dependency string) error {
 	}
 	return nil
 }
+
+// Copy returns a copy of the task
+func (t *Task) Copy() Task {
+	ret := Task{
+		annotationCount: t.annotationCount,
+		data:            make(map[string]string),
+	}
+
+	for k, v := range t.data {
+		ret.data[k] = v
+	}
+
+	return ret
+}

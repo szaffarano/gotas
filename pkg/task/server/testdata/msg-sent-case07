@@ -1,0 +1,11 @@
+client: task 2.6.0
+key: 8749ee17-7949-4ce2-91dd-fcc3e0131305
+org: Public
+protocol: v1
+type: sync
+user: sebas
+
+85cd847b-2b3e-4fc6-bf38-391b84425b6a
+{"description":"Task 2","entry":"20211009T121352Z","modified":"20211009T121445Z","status":"pending","uuid":"613c483b-a89e-4810-a8ad-93c9a64e64dd","tags":["T2.2"]}
+
+

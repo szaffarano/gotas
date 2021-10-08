@@ -1,0 +1,11 @@
+client: task 2.5.3
+key: 8749ee17-7949-4ce2-91dd-fcc3e0131305
+org: Public
+protocol: v1
+type: sync
+user: sebas
+
+47b6cbe5-975a-406a-a02d-8a8b03fa0cd9
+{"description":"Task 1","due":"20211009T220000Z","entry":"20211009T112536Z","modified":"20211009T113736Z","status":"pending","tags":["T2","tagTwo"],"uuid":"e346004f-6ebb-4507-8f21-0ba2b8f263d8","annotations":[{"entry":"20211009T113736Z","description":"New annotation"}]}
+
+
