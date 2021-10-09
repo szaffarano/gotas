@@ -1,0 +1,11 @@
+client: task 2.5.3
+key: 8749ee17-7949-4ce2-91dd-fcc3e0131305
+org: Public
+protocol: v1
+type: sync
+user: sebas
+
+1477b034-b4e2-40f0-8ada-f27039e5fb0b
+{"description":"Task 3","due":"20211011T220000Z","entry":"20211009T121958Z","modified":"20211009T123919Z","status":"pending","tags":["T3.1","T3.2"],"uuid":"ad986934-3e08-4939-809f-0fffcd487974"}
+
+

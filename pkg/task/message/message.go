@@ -8,11 +8,15 @@ import (
 )
 
 const (
+	// SEP represents the string that divides the message body from its payload.
 	SEP = "\n\n"
 )
 
+// Message is the message received from and sent back to the client.
 type Message struct {
-	Header  map[string]string
+	// Header is the list of message headers.
+	Header map[string]string
+	// Payload is an optional payload.
 	Payload string
 }
 
@@ -53,6 +57,8 @@ func NewResponseMessage(code, status string) Message {
 		},
 	}
 }
+
+// String makes Message an Stringer
 func (m Message) String() string {
 	var builder strings.Builder
 	for h := range m.Header {
@@ -63,6 +69,8 @@ func (m Message) String() string {
 	return builder.String()
 }
 
+// Serialize convert a message in an array of bytes ready to send to the
+// client.
 func (m Message) Serialize() []byte {
 	msg := m.String()
 	size := uint32(len(msg) + 4)

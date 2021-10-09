@@ -1,0 +1,5 @@
+type: response
+code: 400
+status: protocol not supported (v2)
+
+

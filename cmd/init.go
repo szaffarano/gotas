@@ -15,7 +15,7 @@ func initCmd() *cobra.Command {
 
 			repository, err := repo.NewRepository(dataDir)
 			if err == nil {
-				log.Infof("Empty repository initialized: %q", repository.Config.Get(repo.Root))
+				log.Infof("Empty repository initialized: %q", repository)
 			}
 
 			return err

@@ -1,0 +1,4 @@
+type: response
+code: 500
+status: message size limit exceeded
+

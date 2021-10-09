@@ -130,7 +130,7 @@ func TestNewTask(t *testing.T) {
 		task, err := NewTask(readFile(t, "task-2.json"))
 		assert.Nil(t, err)
 
-		json := task.ComposeJson(false)
+		json := task.ComposeJSON()
 		task2, err := NewTask(json)
 		assert.Nil(t, err)
 
@@ -141,34 +141,52 @@ func TestNewTask(t *testing.T) {
 		task, err := NewTask(readFile(t, "task-2.json"))
 		assert.Nil(t, err)
 
-		attrs := task.GetAttrNames()
-		assert.Greater(t, len(attrs), 0)
+		t.Run("attr names", func(t *testing.T) {
+			assert.Greater(t, len(task.GetAttrNames()), 0)
+		})
 
-		task.Set("newattr", "newvalue")
-		attrsAfter := task.GetAttrNames()
-		assert.Greater(t, len(attrsAfter), len(attrs))
+		t.Run("add new attribute", func(t *testing.T) {
+			attrs := task.GetAttrNames()
 
-		assert.Equal(t, task.Get("newattr"), "newvalue")
+			task.Set("newattr", "newvalue")
+			attrsAfter := task.GetAttrNames()
 
-		assert.Equal(t, task.GetInt("newattr"), 0)
-		assert.Equal(t, task.GetInt("invalid"), 0)
+			assert.Greater(t, len(attrsAfter), len(attrs))
+			assert.Equal(t, task.Get("newattr"), "newvalue")
+		})
 
-		assert.Equal(t, task.GetDate("newattr"), time.Time{})
-		assert.Equal(t, task.GetDate("invalid"), time.Time{})
+		t.Run("get invalid integer attribute", func(t *testing.T) {
+			assert.Equal(t, task.GetInt("newattr"), 0)
+			assert.Equal(t, task.GetInt("invalid"), 0)
+		})
 
-		assert.True(t, task.Has("newattr"))
-		assert.False(t, task.Has("invalid"))
+		t.Run("invalid date attribute", func(t *testing.T) {
+			assert.Equal(t, task.GetDate("newattr"), time.Time{})
+			assert.Equal(t, task.GetDate("invalid"), time.Time{})
+		})
 
-		now := time.Now().UTC()
-		task.SetDate("newattr", now)
-		assert.Equal(t, task.GetDate("newattr").Unix(), now.Unix())
+		t.Run("has attribute", func(t *testing.T) {
+			assert.True(t, task.Has("newattr"))
+			assert.False(t, task.Has("invalid"))
+		})
 
-		task.Set("newattr", "99")
-		assert.Equal(t, task.GetInt("newattr"), 99)
+		t.Run("valid date attribute", func(t *testing.T) {
+			now := time.Now().UTC()
+			task.SetDate("newattr", now)
+			assert.Equal(t, task.GetDate("newattr").Unix(), now.Unix())
+		})
 
-		task.Remove("newattr")
-		attrsAfter = task.GetAttrNames()
-		assert.Equal(t, len(attrsAfter), len(attrs))
+		t.Run("valid int attribute", func(t *testing.T) {
+			task.Set("newattr", "99")
+			assert.Equal(t, task.GetInt("newattr"), 99)
+		})
+
+		t.Run("remove attribute", func(t *testing.T) {
+			attrsBefore := task.GetAttrNames()
+			task.Remove("newattr")
+			attrsAfter := task.GetAttrNames()
+			assert.Equal(t, len(attrsAfter), len(attrsBefore)-1)
+		})
 	})
 
 }

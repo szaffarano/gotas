@@ -1,0 +1,14 @@
+client: task 2.6.0
+key: 8749ee17-7949-4ce2-91dd-fcc3e0131305
+org: Public
+protocol: v1
+type: sync
+user: sebas
+
+7a561ac9-82ef-456a-9a11-c68c401621ab
+{"description":"Task 4","entry":"20211009T100334Z","modified":"20211009T100334Z","status":"pending","uuid":"561f799f-2064-459a-9f40-1fef2c728bc5"}
+{"depends":"45791aaf-f1ff-4e20-9125-e34838b469cb","description":"Task 1","due":"20211009T220000Z","entry":"20211009T063511Z","modified":"20211009T100350Z","status":"pending","uuid":"927b11f3-576b-4244-a113-e17e21148358","annotations":[{"entry":"20211009T063627Z","description":"One Annotation"}],"tags":["Tag1","newTag"]}
+{"depends":"45791aaf-f1ff-4e20-9125-e34838b469cb","description":"Task 1","due":"20211009T220000Z","entry":"20211009T063511Z","modified":"20211009T100401Z","status":"pending","uuid":"927b11f3-576b-4244-a113-e17e21148358","annotations":[{"entry":"20211009T063627Z","description":"One Annotation"},{"entry":"20211009T100401Z","description":"New annotation"}],"tags":["Tag1","newTag"]}
+
+
+

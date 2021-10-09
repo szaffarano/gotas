@@ -1,5 +1,3 @@
-// +build linux
-
 package repo
 
 import (
@@ -9,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/szaffarano/gotas/pkg/task/task"
 )
 
 func TestNewRepository(t *testing.T) {
@@ -52,31 +51,6 @@ func TestNewRepository(t *testing.T) {
 		_, err = NewRepository(filePath)
 		assert.NotNil(t, err)
 	})
-
-	t.Run("new repository fails when invalid permission for read dir", func(t *testing.T) {
-		baseDir := tempDir(t)
-		defer os.RemoveAll(baseDir)
-
-		err := os.Chmod(baseDir, 0400)
-		assert.Nil(t, err)
-
-		_, err = NewRepository(baseDir)
-
-		assert.NotNil(t, err)
-	})
-
-	t.Run("new repository fails when invalid invalid permission", func(t *testing.T) {
-		baseDir := tempDir(t)
-		defer os.RemoveAll(baseDir)
-
-		err := os.Chmod(baseDir, 0000)
-		assert.Nil(t, err)
-
-		_, err = NewRepository(baseDir)
-
-		assert.NotNil(t, err)
-	})
-
 }
 
 func TestOpenRepository(t *testing.T) {
@@ -85,8 +59,8 @@ func TestOpenRepository(t *testing.T) {
 
 		assert.Nil(t, err)
 		assert.Equal(t, 2, len(repo.orgs))
-		assert.Equal(t, "testdata/repo_one", repo.Config.Get(Root))
-		assert.True(t, repo.Config.GetBool(Confirmation))
+		assert.Equal(t, "testdata/repo_one", repo.cfg.Get(task.Root))
+		assert.True(t, repo.cfg.GetBool(task.Confirmation))
 	})
 
 	t.Run("open repository fails with non existent data directory", func(t *testing.T) {
@@ -159,6 +133,11 @@ func TestNewOrganization(t *testing.T) {
 		assert.NotNil(t, err)
 	})
 
+	t.Run("new organization fails if invalid name", func(t *testing.T) {
+		_, err := repo.NewOrg("Pu/blic")
+		assert.NotNil(t, err)
+	})
+
 }
 
 func TestNewUser(t *testing.T) {
@@ -195,76 +174,9 @@ func TestNewUser(t *testing.T) {
 	})
 }
 
-func TestAuthenticate(t *testing.T) {
-	repo, err := OpenRepository(filepath.Join("testdata", "repo_one"))
-	assert.Nil(t, err)
-
-	cases := []struct {
-		org     string
-		name    string
-		key     string
-		success bool
-	}{
-		{"Public", "noeh", "53938cd8-b72e-4c2a-9fb5-3cd183cf1fa7", true},
-		{"Public", "john", "53938cd8-b72e-4c2a-9fb5-3cd183cf1fa7", false},
-		{"non-existent", "noeh", "53938cd8-b72e-4c2a-9fb5-3cd183cf1fa7", false},
-		{"Public", "non-existent", "53938cd8-b72e-4c2a-9fb5-3cd183cf1fa7", false},
-		{"Public", "noeh", "invalid key", false},
-	}
-
-	for _, c := range cases {
-		u, err := repo.Authenticate(c.org, c.name, c.key)
-		if c.success {
-			assert.Nil(t, err)
-			assert.Equal(t, u.Name, "noeh")
-		} else {
-			assert.NotNil(t, err)
-			authErr, ok := err.(AuthenticationError)
-			assert.True(t, ok)
-			assert.NotEmpty(t, authErr.Msg)
-			assert.NotEmpty(t, authErr.Error())
-		}
-	}
-}
-
-func TestGetData(t *testing.T) {
-	repo, err := OpenRepository(filepath.Join("testdata", "repo_one"))
-	assert.Nil(t, err)
-
-	user, err := repo.Authenticate("Public", "noeh", "53938cd8-b72e-4c2a-9fb5-3cd183cf1fa7")
-	assert.Nil(t, err)
-
-	data, err := repo.GetData(user)
-	assert.Nil(t, err)
-	assert.NotNil(t, data)
-
-	user.Key = "invalid"
-	data, err = repo.GetData(user)
-	assert.Nil(t, data)
-	assert.NotNil(t, err)
-}
-
-func TestAppendData(t *testing.T) {
-	defer func() {
-		tx := filepath.Join("testdata", "repo_one", orgsFolder, "Public", usersFolder, "f793325d-c0d4-4f11-91d3-1388a02e727c", txFile)
-		assert.NoError(t, os.Remove(tx))
-	}()
-
-	repo, err := OpenRepository(filepath.Join("testdata", "repo_one"))
-	assert.Nil(t, err)
-
-	user, err := repo.Authenticate("Public", "john", "f793325d-c0d4-4f11-91d3-1388a02e727c")
-	assert.Nil(t, err)
-
-	data := []string{
-		"hello",
-		"world",
-	}
-	assert.NoError(t, repo.AppendData(user, data))
-	assert.NoError(t, repo.AppendData(user, data))
-}
-
 func tempDir(t *testing.T) string {
+	t.Helper()
+
 	dir, err := ioutil.TempDir(os.TempDir(), "gotas")
 
 	assert.Nil(t, err)

@@ -3,6 +3,7 @@ package server
 import (
 	"bufio"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -10,26 +11,42 @@ import (
 
 	"github.com/apex/log"
 	"github.com/google/uuid"
-	"github.com/szaffarano/gotas/pkg/config"
 	"github.com/szaffarano/gotas/pkg/task/message"
 	"github.com/szaffarano/gotas/pkg/task/repo"
 	"github.com/szaffarano/gotas/pkg/task/task"
-	"github.com/szaffarano/gotas/pkg/task/transport"
+)
+
+const (
+	// RequestLimit is the maximum size allowed for an incoming message
+	// TODO read this value from the configuration
+	RequestLimit = 1048576
 )
 
 // Process processes a taskd client request
-func Process(client transport.Client, cfg config.Config) {
+func Process(client io.ReadWriteCloser, auth repo.Authenticator, ra repo.ReadAppender) {
 	defer client.Close()
 
 	var msg, resp message.Message
 	var err error
 
 	if msg, err = receiveMessage(client); err != nil {
-		log.Errorf("Error parsing message", err)
+		log.Errorf("Error parsing message: %v", err)
+		// TODO receive error code in the error
+		if err = replyMessage(client, message.NewResponseMessage("500", err.Error())); err != nil {
+			log.Errorf("Error replying error message to the client: %v", err)
+		}
 		return
 	}
 
-	resp = processMessage(msg, cfg)
+	loggedUser, err := isValid(msg, auth)
+	if err != nil {
+		if err = replyMessage(client, message.NewResponseMessage("400", err.Error())); err != nil {
+			log.Errorf("Error replying error message to the client: %v", err)
+		}
+		return
+	}
+
+	resp = processMessage(msg, loggedUser, ra)
 
 	if err := replyMessage(client, resp); err != nil {
 		log.Errorf("Error sending response message: %v", err)
@@ -45,21 +62,23 @@ func receiveMessage(client io.Reader) (msg message.Message, err error) {
 	}
 
 	messageSize := int(binary.BigEndian.Uint32(buffer[:4]))
-	buffer = make([]byte, messageSize)
+	if messageSize > RequestLimit {
+		return message.Message{}, errors.New("message size limit exceeded")
+	}
+
+	buffer = make([]byte, messageSize-4)
 
 	if _, err := client.Read(buffer); err != nil {
 		return msg, fmt.Errorf("reading client: %v", err)
 	}
 
-	// TODO verify request limit
-
 	return message.NewMessage(string(buffer))
 }
 
-func processMessage(msg message.Message, cfg config.Config) (resp message.Message) {
+func processMessage(msg message.Message, user task.User, ra repo.ReadAppender) (resp message.Message) {
 	switch t := msg.Header["type"]; t {
 	case "sync":
-		return sync(msg, cfg)
+		return sync(msg, user, ra)
 	default:
 		return message.NewResponseMessage("500", fmt.Sprintf("unknown message type: %q", t))
 	}
@@ -79,42 +98,38 @@ func replyMessage(client io.Writer, resp message.Message) error {
 	return nil
 }
 
-func sync(msg message.Message, cfg config.Config) message.Message {
-	var loggedUser repo.User
+func isValid(msg message.Message, auth repo.Authenticator) (task.User, error) {
 	userName := msg.Header["user"]
 	key := msg.Header["key"]
 	orgName := msg.Header["org"]
 
 	// verify user credentials
-	repository, err := repo.OpenRepository(cfg.Get(repo.Root))
+	loggedUser, err := auth.Authenticate(orgName, userName, key)
 	if err != nil {
-		log.Errorf("Error opening the repository: %v", err)
-		return message.NewResponseMessage("500", "Error opening the repository")
-	}
-
-	if loggedUser, err = repository.Authenticate(orgName, userName, key); err != nil {
-		code := "500"
-		if authError, ok := err.(repo.AuthenticationError); ok {
-			code = authError.Code
-		}
-		return message.NewResponseMessage(code, err.Error())
+		return loggedUser, err
 	}
 
 	// verify protocol version
 	if msg.Header["protocol"] != "v1" {
-		return message.NewResponseMessage("400", "Protocol not supported")
+		return task.User{}, fmt.Errorf("protocol not supported (%s)", msg.Header["protocol"])
 	}
 
 	// TODO verify redirect
 
-	tx, tasks := clientData(msg.Payload)
-	serverData, err := repository.GetData(loggedUser)
+	return loggedUser, nil
+}
+
+func sync(msg message.Message, user task.User, ra repo.ReadAppender) message.Message {
+	var err error
+	tx, clientData := getClientData(msg.Payload)
+	serverData, err := ra.Read(user)
 	if err != nil {
 		log.Errorf("Error reading user dada: %v", err)
 		return message.NewResponseMessage("500", "Error reading user data")
 	}
+	log.Infof("Loaded %v records", len(serverData))
 
-	branchPoint := findBranchPoint(serverData, tx.String())
+	branchPoint := findBranchPoint(serverData, tx)
 	if branchPoint == -1 {
 		return message.NewResponseMessage("500", "Could not find the last sync transaction. Did you skip the 'task sync init' requirement?")
 	}
@@ -131,7 +146,7 @@ func sync(msg message.Message, cfg config.Config) message.Message {
 	var storeCount, mergeCount int
 
 	// For each incoming task...
-	for _, clientTask := range tasks {
+	for _, clientTask := range clientData {
 		// TODO Validate task?
 		uuid := clientTask.Get("uuid")
 
@@ -147,13 +162,12 @@ func sync(msg message.Message, cfg config.Config) message.Message {
 
 			// Find common ancestor, prior to branch point
 			commonAncestor, err := findCommonAncestor(serverData, branchPoint, uuid)
-			log.Infof("Common ancestor: %v", commonAncestor)
 			if err != nil {
 				return message.NewResponseMessage("500", err.Error())
 			}
 
 			// List the client-side modifications.
-			clientMods := getClientMods(tasks, uuid)
+			clientMods := getClientMods(clientData, uuid)
 
 			// List the server-side modifications.
 			serverMods, err := getServerMods(serverData, uuid, commonAncestor)
@@ -169,16 +183,16 @@ func sync(msg message.Message, cfg config.Config) message.Message {
 
 			mergeSort(clientMods, serverMods, combined)
 
-			combinedJson := combined.ComposeJson(false)
+			combinedJSON := combined.ComposeJSON()
 
 			// Append combined task to client and server data, if not already there.
-			newServerData = append(newServerData, (combinedJson + "\n"))
-			newClientData = append(newClientData, combinedJson)
+			newServerData = append(newServerData, (combinedJSON + "\n"))
+			newClientData = append(newClientData, combinedJSON)
 			mergeCount++
 		} else {
 			// Task not in subset, therefore can be stored unmodified.  Does not get
 			// returned to client.
-			newServerData = append(newServerData, (clientTask.ComposeJson(false) + "\n"))
+			newServerData = append(newServerData, (clientTask.ComposeJSON() + "\n"))
 			storeCount++
 		}
 	}
@@ -195,7 +209,7 @@ func sync(msg message.Message, cfg config.Config) message.Message {
 
 		// Append new_server_data to file.
 		// append_server_data(org, password, newServerData)
-		if err := repository.AppendData(loggedUser, newServerData); err != nil {
+		if err := ra.Append(user, newServerData); err != nil {
 			return message.NewResponseMessage("500", err.Error())
 		}
 	} else {
@@ -208,17 +222,8 @@ func sync(msg message.Message, cfg config.Config) message.Message {
 		log.Infof("Sync key %q still valid", newSyncKey)
 	}
 
-	// If there is outgoing data, generate payload + key.
-	payload := ""
-	if len(serverSubset) > 0 || len(newClientData) > 0 {
-		payload = generate_payload(serverSubset, newClientData, newSyncKey)
-	} else {
-		// No outgoing data, just sent the latest key.
-		payload = newSyncKey + "\n"
-	}
-
 	out := message.Message{
-		Payload: payload,
+		Payload: getResponsePayload(serverSubset, newClientData, newSyncKey),
 		Header:  make(map[string]string),
 	}
 
@@ -226,19 +231,31 @@ func sync(msg message.Message, cfg config.Config) message.Message {
 	if len(serverSubset) > 0 || len(newClientData) > 0 || len(newServerData) > 0 {
 		log.Infof("returning 200")
 		out.Header["code"] = "200"
-		out.Header["status"] = task.ErrorCodes["200"]
+		out.Header["status"] = task.ErrorCodes[200]
 	} else {
 		log.Infof("returning 201")
 		out.Header["code"] = "201"
-		out.Header["status"] = task.ErrorCodes["201"]
+		out.Header["status"] = task.ErrorCodes[201]
 		log.Infof("No change")
 	}
 
 	return out
 }
 
-func clientData(payload string) (tx uuid.UUID, tasks []task.Task) {
-	var err error
+func getResponsePayload(serverSubset []task.Task, newClientData []string, newSyncKey string) string {
+	// If there is outgoing data, generate payload + key.
+	payload := ""
+	if len(serverSubset) > 0 || len(newClientData) > 0 {
+		payload = generatePayload(serverSubset, newClientData, newSyncKey)
+	} else {
+		// No outgoing data, just sent the latest key.
+		payload = newSyncKey + "\n"
+	}
+
+	return payload
+}
+
+func getClientData(payload string) (tx string, tasks []task.Task) {
 	scanner := bufio.NewScanner(strings.NewReader(payload))
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -253,8 +270,10 @@ func clientData(payload string) (tx uuid.UUID, tasks []task.Task) {
 				tasks = append(tasks, t)
 
 			} else {
-				if tx, err = uuid.Parse(line); err != nil {
-					log.Warnf("Error parsing UUID: %v", err)
+				if parsed, err := uuid.Parse(line); err != nil {
+					log.Warnf("Error parsing UUID %s: %v", line, err)
+				} else {
+					tx = parsed.String()
 				}
 			}
 		}
@@ -264,7 +283,7 @@ func clientData(payload string) (tx uuid.UUID, tasks []task.Task) {
 
 func findBranchPoint(data []string, key string) int {
 	// A missing key is either a first-time sync, or a request to get all data.
-	if key == "" || key == "00000000-0000-0000-0000-000000000000" {
+	if key == "" {
 		return 0
 	}
 
@@ -281,8 +300,9 @@ func findBranchPoint(data []string, key string) int {
 
 func extractSubset(data []string, branchPoint int) ([]task.Task, error) {
 
+	var tasks []task.Task
 	if branchPoint < len(data) {
-		tasks := make([]task.Task, 0, len(data)-branchPoint)
+		tasks = make([]task.Task, 0, len(data)-branchPoint)
 		for i := branchPoint; i < len(data); i++ {
 			if strings.HasPrefix(data[i], "{") {
 				t, err := task.NewTask(data[i])
@@ -293,9 +313,9 @@ func extractSubset(data []string, branchPoint int) ([]task.Task, error) {
 			}
 		}
 
-		return tasks, nil
 	}
-	return nil, fmt.Errorf("invalid branchPoint: %d for %d data length", branchPoint, len(data))
+	log.Infof("Subset %v tasks", len(tasks))
+	return tasks, nil
 }
 
 func taskContains(taskList []task.Task, name, value string) bool {
@@ -316,14 +336,22 @@ func sliceContains(slice []string, value string) bool {
 	return false
 }
 
-func findCommonAncestor(data []string, branch_point int, uuid string) (int, error) {
-	for i := branch_point; i >= 0; i++ {
+func findCommonAncestor(data []string, branchPoint int, uuid string) (int, error) {
+	log.Infof("Finding commong ancestor for uuid = %s and branch point = %d", uuid, branchPoint)
+
+	for i := branchPoint; i >= 0; i-- {
+		log.Infof("Reading line to compare ancestor for uuid = %s and branch point = %s", uuid, data[i])
+
 		if strings.HasPrefix(data[i], "{") {
 			t, err := task.NewTask(data[i])
 			if err != nil {
 				return 0, err
 			}
+			log.Infof("Comparing common ancestor %s == %s", uuid, t.Get("uuid"))
+
 			if t.Get("uuid") == uuid {
+				log.Infof("Common ancestor found uuid = %s, idx = %d", uuid, i)
+
 				return i, nil
 			}
 		}
@@ -365,49 +393,49 @@ func getServerMods(data []string, uuid string, ancestor int) ([]task.Task, error
 // Simultaneously walks two lists, select either the left or the right depending
 // on last modification time.
 func mergeSort(left []task.Task, right []task.Task, combined task.Task) {
-	dummy := []task.Task{combined}
-	var prevLeft, idxLeft, prevRight, idxRight int
+	prevLeft, prevRight := combined.Copy(), combined.Copy()
+	var idxLeft, idxRight int
 
 	for idxLeft < len(left) && idxRight < len(right) {
-		mod_l := last_modification(dummy[idxLeft])
-		mod_r := last_modification(right[idxRight])
-		if mod_l.Before(mod_r) {
-			log.Infof("applying left %v < %v", mod_l, mod_r)
-			patch(combined, dummy[prevLeft], left[idxLeft])
-			combined.SetDate("modified", mod_l)
-			prevLeft = idxLeft
+		modLeft := lastModification(left[idxLeft])
+		modRigth := lastModification(right[idxRight])
+		if modLeft.Before(modRigth) {
+			log.Infof("applying left %d < %d", modLeft.Unix(), modRigth.Unix())
+			patch(combined, prevLeft, left[idxLeft])
+			combined.SetDate("modified", modLeft)
+			prevLeft = left[idxLeft]
 			idxLeft++
 		} else {
-			log.Infof("applying right %v >= %v", mod_l, mod_r)
-			patch(combined, dummy[prevRight], right[idxRight])
-			combined.SetDate("modified", mod_r)
-			prevRight = idxRight
+			log.Infof("applying right %d >= %d", modLeft.Unix(), modRigth.Unix())
+			patch(combined, prevRight, right[idxRight])
+			combined.SetDate("modified", modRigth)
+			prevRight = right[idxRight]
 			idxRight++
 		}
 	}
 
 	for idxLeft < len(left) {
-		patch(combined, dummy[prevLeft], left[idxLeft])
-		combined.SetDate("modified", last_modification(left[idxLeft]))
-		prevLeft = idxLeft
+		patch(combined, prevLeft, left[idxLeft])
+		combined.SetDate("modified", lastModification(left[idxLeft]))
+		prevLeft = left[idxLeft]
 		idxLeft++
 	}
 
 	for idxRight < len(right) {
-		patch(combined, dummy[prevRight], right[idxRight])
-		combined.SetDate("modified", last_modification(right[idxRight]))
-		prevRight = idxRight
+		patch(combined, prevRight, right[idxRight])
+		combined.SetDate("modified", lastModification(right[idxRight]))
+		prevRight = right[idxRight]
 		idxRight++
 	}
 
-	log.Infof("Merge result {2}", combined.ComposeJson(false))
+	log.Infof("Merge result %s", combined.ComposeJSON())
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // Get the last modication time for a task.  Ideally this is the attribute
 // "modification".  If that is missing (pre taskwarrior 2.2.0), use the later of
 // the "entry", "end", or"start" dates.
-func last_modification(t task.Task) time.Time {
+func lastModification(t task.Task) time.Time {
 	dateFields := []string{"modified", "end", "start"}
 
 	for _, f := range dateFields {
@@ -419,11 +447,11 @@ func last_modification(t task.Task) time.Time {
 	return t.GetDate("entry")
 }
 
-func generate_payload(subset []task.Task, additions []string, key string) string {
+func generatePayload(subset []task.Task, additions []string, key string) string {
 	payload := new(strings.Builder)
 
 	for _, s := range subset {
-		payload.Write([]byte(s.ComposeJson(false)))
+		payload.Write([]byte(s.ComposeJSON()))
 		payload.Write([]byte("\n"))
 	}
 
@@ -446,7 +474,7 @@ func patch(base, from, to task.Task) {
 	fromAtts := from.GetAttrNames()
 	toAtts := to.GetAttrNames()
 
-	fromOnly, to_only := listDiff(fromAtts, toAtts)
+	fromOnly, toOnly := listDiff(fromAtts, toAtts)
 	commonAtts := listIntersect(fromAtts, toAtts)
 
 	// The from-only attributes must be deleted from base.
@@ -456,7 +484,7 @@ func patch(base, from, to task.Task) {
 	}
 
 	// The to-only attributes must be added to base.
-	for _, att := range to_only {
+	for _, att := range toOnly {
 		log.Infof("patch add %v=%v", att, to.Get(att))
 		base.Set(att, to.Get(att))
 	}

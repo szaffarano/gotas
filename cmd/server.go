@@ -7,6 +7,7 @@ import (
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/szaffarano/gotas/pkg/config"
+	"github.com/szaffarano/gotas/pkg/task/repo"
 	"github.com/szaffarano/gotas/pkg/task/server"
 	"github.com/szaffarano/gotas/pkg/task/transport"
 )
@@ -35,7 +36,14 @@ func serverCmd() *cobra.Command {
 				}
 			}()
 
+			auth, err := repo.NewDefaultAuthenticator(cfg)
+			if err != nil {
+				return err
+			}
+
 			// TODO implement graceful shutdown
+
+			ra := repo.NewDefaultReadAppender(cfg)
 
 			for {
 				client, err := transp.NextClient()
@@ -43,7 +51,7 @@ func serverCmd() *cobra.Command {
 					log.Errorf("Error receiving client: %s", err.Error())
 				}
 
-				go server.Process(client, cfg)
+				go server.Process(client, auth, ra)
 			}
 		},
 	}

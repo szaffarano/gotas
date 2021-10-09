@@ -10,46 +10,55 @@ import (
 	"strings"
 )
 
+// Config represents a generic key=value plain-text configuration
 type Config struct {
 	path   string
 	values map[string]string
 }
 
+// Set sets a new value in the configuration.  Overrides an existent value.
 func (c *Config) Set(key, value string) {
 	c.values[key] = value
 }
 
+// SetInt sets a new int value in the configuration.  Overrides an existent
+// value.
 func (c *Config) SetInt(key string, value int) {
 	c.values[key] = strconv.Itoa(value)
 }
 
+// SetBool sets a new int value in the configuration.  Overrides an existent
+// value.
 func (c *Config) SetBool(key string, value bool) {
 	c.values[key] = strconv.FormatBool(value)
 }
 
+// Get returns the value associated to the given key or the zero value ("") if
+// it doesn't exist.
 func (c *Config) Get(key string) string {
 	// @TODO return error when the key does not exist?
 	return c.values[key]
 }
 
+// GetInt returns the value as integer associated to the given key or the zero
+// value (0) if it doesn't exist or the value can't be parsed as number.
 func (c *Config) GetInt(key string) (value int) {
-	// @TODO return error when the key does not exist or conversion fails?
 	if str, ok := c.values[key]; ok {
 		value, _ = strconv.Atoi(str)
 	}
-
 	return
 }
 
+// GetBool returns the value as a boolean associated to the given key or the zero
+// value (false) if it doesn't exist or the value can't be parsed as a bool.
 func (c *Config) GetBool(key string) (value bool) {
-	// @TODO return error when the key does not exist or conversion fails?
 	if str, ok := c.values[key]; ok {
 		value, _ = strconv.ParseBool(str)
 	}
-
 	return
 }
 
+// New creates an empty configuration and store it in a given file.
 func New(path string) (Config, error) {
 	cfg := Config{
 		path:   path,
@@ -63,6 +72,8 @@ func New(path string) (Config, error) {
 	return cfg, nil
 }
 
+// Load loads a configuration from a given file.  The file has to have pairs
+// of key=value lines.  Empty lines or starting with "#" will be ignored.
 func Load(path string) (Config, error) {
 	cfg := Config{}
 	file, err := os.Open(path)
@@ -92,6 +103,9 @@ func Load(path string) (Config, error) {
 	return cfg, nil
 }
 
+// Save stores the configuration in the file set when initialized.  In case it
+// fails because the configuration wasn't not properly initialized or there is
+// an error saving the file, it will return an error.
 func Save(config Config) error {
 	if config.path == "" {
 		return errors.New("uninitialized config")

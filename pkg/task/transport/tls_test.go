@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"path/filepath"
@@ -12,7 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/szaffarano/gotas/pkg/config"
-	"github.com/szaffarano/gotas/pkg/task/repo"
+	"github.com/szaffarano/gotas/pkg/task/task"
 )
 
 func TestServer(t *testing.T) {
@@ -56,7 +57,7 @@ func TestServer(t *testing.T) {
 			{"invalid key cert", "server.invalid-key.conf", []string{}},
 			{"malformed ca cert", "server.malformed-ca.conf", []string{}},
 			{"invalid ca cert", "server.invalid-ca.conf", []string{}},
-			{"invalid invalid bind address", "server.conf", []string{repo.BindAddress, "1:2:3:localhost"}},
+			{"invalid invalid bind address", "server.conf", []string{task.BindAddress, "1:2:3:localhost"}},
 		}
 
 		for _, c := range cases {
@@ -67,7 +68,7 @@ func TestServer(t *testing.T) {
 				}
 				cfg := newTaskdConfig(t, c.repo, opts...)
 
-				srv, err := newTlsServer(cfg)
+				srv, err := NewServer(cfg)
 				assert.NotNil(t, err)
 				assert.Nil(t, srv)
 			})
@@ -75,18 +76,18 @@ func TestServer(t *testing.T) {
 	})
 }
 
-func newTaskdClientServer(t *testing.T, srvCfgFile, clCfgFile string) (net.Conn, Client, func()) {
+func newTaskdClientServer(t *testing.T, srvCfgFile, clCfgFile string) (net.Conn, io.ReadWriteCloser, func()) {
 	t.Helper()
 
 	const ack = "ack"
 	var client net.Conn
-	var server Client
+	var server io.ReadWriteCloser
 
-	srvConfig := newTaskdConfig(t, srvCfgFile, repo.BindAddress, fmt.Sprintf("localhost:%d", nextFreePort(t, 1025)))
+	srvConfig := newTaskdConfig(t, srvCfgFile, task.BindAddress, fmt.Sprintf("localhost:%d", nextFreePort(t, 1025)))
 	clientCfg := newTLSConfig(t, clCfgFile)
 
 	ready := make(chan []byte)
-	srv, err := newTlsServer(srvConfig)
+	srv, err := newTLSServer(srvConfig)
 	if err != nil {
 		assert.FailNowf(t, "Error creating server: %s", err.Error())
 	}
@@ -107,7 +108,7 @@ func newTaskdClientServer(t *testing.T, srvCfgFile, clCfgFile string) (net.Conn,
 		ready <- buf[:size]
 	}()
 
-	client, err = tls.Dial("tcp", srvConfig.Get(repo.BindAddress), clientCfg)
+	client, err = tls.Dial("tcp", srvConfig.Get(task.BindAddress), clientCfg)
 	if err != nil {
 		assert.FailNow(t, err.Error())
 	}

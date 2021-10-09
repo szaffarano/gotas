@@ -4,21 +4,22 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 
 	"github.com/apex/log"
 	"github.com/szaffarano/gotas/pkg/config"
-	"github.com/szaffarano/gotas/pkg/task/repo"
+	"github.com/szaffarano/gotas/pkg/task/task"
 )
 
 // NewTlsServer creates a new tls-based server
-func newTlsServer(cfg config.Config) (Server, error) {
+func newTLSServer(cfg config.Config) (Server, error) {
 	var ca []byte
 	var cert tls.Certificate
 	var err error
 
-	if ca, err = ioutil.ReadFile(cfg.Get(repo.CaCert)); err != nil {
+	if ca, err = ioutil.ReadFile(cfg.Get(task.CaCert)); err != nil {
 		return nil, fmt.Errorf("reading root CA file: %v", err)
 	}
 
@@ -27,7 +28,7 @@ func newTlsServer(cfg config.Config) (Server, error) {
 		return nil, fmt.Errorf("reading creating root CA pool: %v", err)
 	}
 
-	if cert, err = tls.LoadX509KeyPair(cfg.Get(repo.ServerCert), cfg.Get(repo.ServerKey)); err != nil {
+	if cert, err = tls.LoadX509KeyPair(cfg.Get(task.ServerCert), cfg.Get(task.ServerKey)); err != nil {
 		return nil, fmt.Errorf("reading certificate file: %v", err)
 	}
 
@@ -47,12 +48,12 @@ func newTlsServer(cfg config.Config) (Server, error) {
 		ClientAuth: tls.RequireAndVerifyClientCert,
 	}
 
-	listener, err := tls.Listen("tcp", cfg.Get(repo.BindAddress), tlsCfg)
+	listener, err := tls.Listen("tcp", cfg.Get(task.BindAddress), tlsCfg)
 	if err != nil {
 		return nil, err
 	}
 
-	log.Infof("Listening on %s...", cfg.Get(repo.BindAddress))
+	log.Infof("Listening on %s...", cfg.Get(task.BindAddress))
 	return &tlsServer{listener}, nil
 }
 
@@ -80,7 +81,7 @@ func (c *tlsClient) Close() error {
 	return c.conn.Close()
 }
 
-func (s *tlsServer) NextClient() (Client, error) {
+func (s *tlsServer) NextClient() (io.ReadWriteCloser, error) {
 	conn, err := s.listener.Accept()
 	if err != nil {
 		return nil, err
