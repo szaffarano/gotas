@@ -36,8 +36,9 @@ func Process(client io.ReadWriteCloser, auth repo.Authenticator, ra repo.ReadApp
 
 	loggedUser, err := isValid(msg, auth)
 	if err != nil {
-		replyMessage(client, message.NewResponseMessage("400", err.Error()))
-
+		if err = replyMessage(client, message.NewResponseMessage("400", err.Error())); err != nil {
+			log.Errorf("Error replying error message to the client: %v", err)
+		}
 	}
 
 	resp = processMessage(msg, loggedUser, ra)
