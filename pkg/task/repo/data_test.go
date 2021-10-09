@@ -67,13 +67,6 @@ func TestCopy(t *testing.T) {
 	t.Run("target is dir", func(t *testing.T) {
 		assert.Error(t, (source(dir)).copy(filepath.Join(dir, "bla", "ble")))
 	})
-
-	t.Run("fail if source is not writable", func(t *testing.T) {
-		defer assert.NoError(t, os.Chmod(src.Name(), 06400))
-
-		assert.NoError(t, os.Chmod(src.Name(), 0000))
-		assert.Error(t, (source(src.Name())).copy(filepath.Join(dir, "bla")))
-	})
 }
 
 func validReadAppender(t *testing.T) ReadAppender {
