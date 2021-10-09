@@ -30,7 +30,11 @@ func Process(client io.ReadWriteCloser, auth repo.Authenticator, ra repo.ReadApp
 	var err error
 
 	if msg, err = receiveMessage(client); err != nil {
-		log.Errorf("Error parsing message", err)
+		log.Errorf("Error parsing message: %v", err)
+		// TODO receive error code in the error
+		if err = replyMessage(client, message.NewResponseMessage("500", err.Error())); err != nil {
+			log.Errorf("Error replying error message to the client: %v", err)
+		}
 		return
 	}
 
@@ -39,6 +43,7 @@ func Process(client io.ReadWriteCloser, auth repo.Authenticator, ra repo.ReadApp
 		if err = replyMessage(client, message.NewResponseMessage("400", err.Error())); err != nil {
 			log.Errorf("Error replying error message to the client: %v", err)
 		}
+		return
 	}
 
 	resp = processMessage(msg, loggedUser, ra)
@@ -106,7 +111,7 @@ func isValid(msg message.Message, auth repo.Authenticator) (task.User, error) {
 
 	// verify protocol version
 	if msg.Header["protocol"] != "v1" {
-		return task.User{}, fmt.Errorf("%v: Protocol not supported", msg.Header["protocol"])
+		return task.User{}, fmt.Errorf("protocol not supported (%s)", msg.Header["protocol"])
 	}
 
 	// TODO verify redirect

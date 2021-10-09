@@ -84,6 +84,7 @@ func TestProcessMessage(t *testing.T) {
 		{"modify tag and due concurrently", "msg-sent-case08", "tx-case08-before.data", "msg-replied-case08", "tx-case08-after.data"},
 		{"merge modify tag and due concurrently", "msg-sent-case09", "tx-case09-before.data", "msg-replied-case09", "tx-case09-after.data"},
 		{"no changes", "msg-sent-case11", "tx-case11-before.data", "msg-replied-case11", "tx-case11-after.data"},
+		{"invalid protocol", "msg-sent-invalid-protocol", "empty-tx", "msg-replied-invalid-protocol", "empty-tx"},
 	}
 
 	for _, c := range cases {
@@ -114,6 +115,25 @@ func TestProcessMessage(t *testing.T) {
 			comparePayloads(t, loadPayload(t, c.msgReplied), client.writer.String())
 		})
 	}
+
+	t.Run("fail if size exceeded", func(t *testing.T) {
+		sizeBuffer := make([]byte, 4)
+		binary.BigEndian.PutUint32(sizeBuffer, uint32(RequestLimit+1))
+
+		client := &mockClient{
+			reader: strings.NewReader(string(sizeBuffer)),
+			writer: new(strings.Builder),
+		}
+
+		auth := &mockAuth{}
+		ra := &mockReadAppender{
+			writer: new(strings.Builder),
+		}
+
+		Process(client, auth, ra)
+
+		comparePayloads(t, string(loadPayload(t, "msg-replied-size-exceeded")), client.writer.String())
+	})
 }
 
 func loadPayload(t *testing.T, path string) string {
