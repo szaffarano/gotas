@@ -2,6 +2,7 @@ package server
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/binary"
 	"io/ioutil"
 	"path/filepath"
@@ -136,7 +137,15 @@ func loadFile(t *testing.T, path string) []byte {
 	if err != nil {
 		t.Errorf(err.Error())
 	}
-	return data
+	return normalizeNewlines(data)
+}
+
+func normalizeNewlines(d []byte) []byte {
+	// replace CR LF \r\n (windows) with LF \n (unix)
+	d = bytes.ReplaceAll(d, []byte{13, 10}, []byte{10})
+	// replace CF \r (mac) with LF \n (unix)
+	d = bytes.ReplaceAll(d, []byte{13}, []byte{10})
+	return d
 }
 
 func compareTx(t *testing.T, expected, actual string) {
