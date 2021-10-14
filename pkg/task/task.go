@@ -12,7 +12,6 @@ import (
 
 	"github.com/apex/log"
 	"github.com/google/uuid"
-	"github.com/szaffarano/gotas/pkg/task/parser"
 )
 
 const (
@@ -107,19 +106,6 @@ type Task struct {
 	data            map[string]string
 }
 
-// Organization represents an Organization grouping users.
-type Organization struct {
-	Name  string
-	Users []User
-}
-
-// User is a system user, it belongs to one organization.
-type User struct {
-	Name string
-	Key  string
-	Org  *Organization
-}
-
 // NewTask parses a raw string as a taskwarrior Task.
 //
 // The parsing algorithm was taken from the original taskserver code
@@ -150,7 +136,7 @@ func parseV4(raw string) (Task, error) {
 		annotationCount: 0,
 	}
 
-	pig := parser.NewPig(raw)
+	pig := NewPig(raw)
 	line := new(strings.Builder)
 
 	if pig.Skip('[') && pig.GetUntil(']', line) && pig.Skip(']') && (pig.Skip('\n') || pig.Eos()) {
@@ -159,7 +145,7 @@ func parseV4(raw string) (Task, error) {
 			return parseLegacy(raw)
 		}
 
-		attLine := parser.NewPig(line.String())
+		attLine := NewPig(line.String())
 		for !attLine.Eos() {
 			name := new(strings.Builder)
 			value := new(strings.Builder)
@@ -168,7 +154,7 @@ func parseV4(raw string) (Task, error) {
 					task.annotationCount++
 				}
 
-				task.data[name.String()] = parser.Decode(value.String())
+				task.data[name.String()] = Decode(value.String())
 			} else if attLine.Eos() {
 				// throw std::string ("Unrecognized characters at end of line.");
 				log.Debug("unrecognized characters at end of line, trying legacy parsing")

@@ -1,13 +1,16 @@
 package repo
 
-import (
-	"github.com/szaffarano/gotas/pkg/config"
-	"github.com/szaffarano/gotas/pkg/task/task"
-)
+// Organization represents an Organization grouping users.
+type Organization struct {
+	Name  string
+	Users []User
+}
 
-// Authenticator exposes the logic needed to deal with security functionality
-type Authenticator interface {
-	Authenticate(org, user, key string) (task.User, error)
+// User is a system user, it belongs to one organization.
+type User struct {
+	Name string
+	Key  string
+	Org  *Organization
 }
 
 // DefaultAuthenticator is the default Authenticator implementation on top of a
@@ -29,8 +32,8 @@ func (e AuthenticationError) Error() string {
 }
 
 // NewDefaultAuthenticator creates a new Arthenticator
-func NewDefaultAuthenticator(cfg config.Config) (*DefaultAuthenticator, error) {
-	repo, err := OpenRepository(cfg.Get(task.Root))
+func NewDefaultAuthenticator(rootDir string) (*DefaultAuthenticator, error) {
+	repo, err := OpenRepository(rootDir)
 	if err != nil {
 		return nil, err
 	}
@@ -38,10 +41,10 @@ func NewDefaultAuthenticator(cfg config.Config) (*DefaultAuthenticator, error) {
 }
 
 // Authenticate verifies that the given organiozation-user-key is valid.
-func (a *DefaultAuthenticator) Authenticate(orgName, userName, key string) (task.User, error) {
+func (a *DefaultAuthenticator) Authenticate(orgName, userName, key string) (User, error) {
 	org, err := a.repo.GetOrg(orgName)
 	if err != nil {
-		return task.User{}, AuthenticationError{"400", "Invalid org"}
+		return User{}, AuthenticationError{"400", "Invalid org"}
 	}
 
 	for _, u := range org.Users {
@@ -50,5 +53,5 @@ func (a *DefaultAuthenticator) Authenticate(orgName, userName, key string) (task
 		}
 	}
 
-	return task.User{}, AuthenticationError{"401", "Invalid username or key"}
+	return User{}, AuthenticationError{"401", "Invalid username or key"}
 }

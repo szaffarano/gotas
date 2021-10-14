@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/szaffarano/gotas/pkg/task/task"
 )
 
 func TestNewRepository(t *testing.T) {
@@ -59,8 +58,6 @@ func TestOpenRepository(t *testing.T) {
 
 		assert.Nil(t, err)
 		assert.Equal(t, 2, len(repo.orgs))
-		assert.Equal(t, "testdata/repo_one", repo.cfg.Get(task.Root))
-		assert.True(t, repo.cfg.GetBool(task.Confirmation))
 	})
 
 	t.Run("open repository fails with non existent data directory", func(t *testing.T) {

@@ -1,4 +1,4 @@
-package server
+package task
 
 import (
 	"bufio"
@@ -10,8 +10,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/szaffarano/gotas/pkg/task/message"
-	"github.com/szaffarano/gotas/pkg/task/task"
+	"github.com/szaffarano/gotas/pkg/task/repo"
 )
 
 type mockClient struct {
@@ -41,11 +40,11 @@ func (c *mockClient) Close() error {
 	return nil
 }
 
-func (a *mockAuth) Authenticate(orgName, userName, key string) (task.User, error) {
-	return task.User{}, nil
+func (a *mockAuth) Authenticate(orgName, userName, key string) (repo.User, error) {
+	return repo.User{}, nil
 }
 
-func (ra *mockReadAppender) Read(user task.User) ([]string, error) {
+func (ra *mockReadAppender) Read(user repo.User) ([]string, error) {
 	scanner := bufio.NewScanner(ra.reader)
 	var result []string
 	for scanner.Scan() {
@@ -54,7 +53,7 @@ func (ra *mockReadAppender) Read(user task.User) ([]string, error) {
 	return result, nil
 }
 
-func (ra *mockReadAppender) Append(user task.User, data []string) error {
+func (ra *mockReadAppender) Append(user repo.User, data []string) error {
 	for _, d := range data {
 		ra.writer.Write([]byte(d))
 	}
@@ -118,7 +117,7 @@ func TestProcessMessage(t *testing.T) {
 
 	t.Run("fail if size exceeded", func(t *testing.T) {
 		sizeBuffer := make([]byte, 4)
-		binary.BigEndian.PutUint32(sizeBuffer, uint32(RequestLimit+1))
+		binary.BigEndian.PutUint32(sizeBuffer, uint32(RequestLimitInBytes+1))
 
 		client := &mockClient{
 			reader: strings.NewReader(string(sizeBuffer)),
@@ -153,7 +152,7 @@ func loadPayload(t *testing.T, path string) string {
 func loadFile(t *testing.T, path string) []byte {
 	t.Helper()
 
-	data, err := ioutil.ReadFile(filepath.Join("testdata", path))
+	data, err := ioutil.ReadFile(filepath.Join("testdata", "payloads", path))
 	if err != nil {
 		t.Errorf(err.Error())
 	}
@@ -189,12 +188,12 @@ func comparePayloads(t *testing.T, expected, actual string) {
 	}
 }
 
-func parseMsg(t *testing.T, raw string) message.Message {
+func parseMsg(t *testing.T, raw string) Message {
 	t.Helper()
 
 	raw = string([]byte(raw)[4:])
 
-	msg, err := message.NewMessage(raw)
+	msg, err := NewMessage(raw)
 	if err != nil {
 		assert.FailNow(t, err.Error())
 	}
@@ -202,15 +201,15 @@ func parseMsg(t *testing.T, raw string) message.Message {
 	return msg
 }
 
-func collectTxs(t *testing.T, txs string) ([]task.Task, []string) {
-	var tasks []task.Task
+func collectTxs(t *testing.T, txs string) ([]Task, []string) {
+	var tasks []Task
 	var ids []string
 
 	scanner := bufio.NewScanner(strings.NewReader(txs))
 	for scanner.Scan() {
 		l := scanner.Text()
 		if strings.HasPrefix(l, "{") {
-			task, err := task.NewTask(l)
+			task, err := NewTask(l)
 			if err != nil {
 				assert.FailNow(t, err.Error())
 			}

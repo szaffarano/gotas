@@ -10,7 +10,7 @@ import (
 
 	"github.com/apex/log"
 	"github.com/szaffarano/gotas/pkg/config"
-	"github.com/szaffarano/gotas/pkg/task/task"
+	"github.com/szaffarano/gotas/pkg/task"
 )
 
 // NewTlsServer creates a new tls-based server

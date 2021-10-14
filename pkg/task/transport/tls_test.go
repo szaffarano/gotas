@@ -13,7 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/szaffarano/gotas/pkg/config"
-	"github.com/szaffarano/gotas/pkg/task/task"
+	"github.com/szaffarano/gotas/pkg/task"
 )
 
 func TestServer(t *testing.T) {

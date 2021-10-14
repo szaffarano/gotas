@@ -1,7 +1,7 @@
 // The logic for this package was taken from the original taskserver code
 // https://github.com/GothenburgBitFactory/libshared/blob/1fa5dcbf53a280857e35436aef6beb6a37266e33/src/Pig.cpp
 
-package parser
+package task
 
 import (
 	"fmt"

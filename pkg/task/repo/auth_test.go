@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/szaffarano/gotas/pkg/config"
 )
 
 func TestAuthenticate(t *testing.T) {
@@ -38,15 +37,11 @@ func TestAuthenticate(t *testing.T) {
 	}
 }
 
-func validAuthenticator(t *testing.T) Authenticator {
+func validAuthenticator(t *testing.T) *DefaultAuthenticator {
 	t.Helper()
 
-	configFilePath := filepath.Join("testdata", "repo_one", "config")
-	cfg, err := config.Load(configFilePath)
-	if err != nil {
-		assert.FailNow(t, err.Error())
-	}
-	auth, err := NewDefaultAuthenticator(cfg)
+	configFilePath := filepath.Join("testdata", "repo_one")
+	auth, err := NewDefaultAuthenticator(configFilePath)
 	if err != nil {
 		assert.FailNow(t, err.Error())
 	}
