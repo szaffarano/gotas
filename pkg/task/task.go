@@ -12,6 +12,7 @@ import (
 
 	"github.com/apex/log"
 	"github.com/google/uuid"
+	"github.com/szaffarano/gotas/pkg/parser"
 )
 
 const (
@@ -136,7 +137,7 @@ func parseV4(raw string) (Task, error) {
 		annotationCount: 0,
 	}
 
-	pig := NewPig(raw)
+	pig := parser.NewPig(raw)
 	line := new(strings.Builder)
 
 	if pig.Skip('[') && pig.GetUntil(']', line) && pig.Skip(']') && (pig.Skip('\n') || pig.Eos()) {
@@ -145,7 +146,7 @@ func parseV4(raw string) (Task, error) {
 			return parseLegacy(raw)
 		}
 
-		attLine := NewPig(line.String())
+		attLine := parser.NewPig(line.String())
 		for !attLine.Eos() {
 			name := new(strings.Builder)
 			value := new(strings.Builder)
@@ -154,7 +155,7 @@ func parseV4(raw string) (Task, error) {
 					task.annotationCount++
 				}
 
-				task.data[name.String()] = Decode(value.String())
+				task.data[name.String()] = parser.Decode(value.String())
 			} else if attLine.Eos() {
 				// throw std::string ("Unrecognized characters at end of line.");
 				log.Debug("unrecognized characters at end of line, trying legacy parsing")
