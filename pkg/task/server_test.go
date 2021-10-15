@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/szaffarano/gotas/pkg/task/repo"
+	"github.com/szaffarano/gotas/pkg/task/auth"
 )
 
 type mockClient struct {
@@ -40,11 +40,11 @@ func (c *mockClient) Close() error {
 	return nil
 }
 
-func (a *mockAuth) Authenticate(orgName, userName, key string) (repo.User, error) {
-	return repo.User{}, nil
+func (a *mockAuth) Authenticate(orgName, userName, key string) (auth.User, error) {
+	return auth.User{}, nil
 }
 
-func (ra *mockReadAppender) Read(user repo.User) ([]string, error) {
+func (ra *mockReadAppender) Read(user auth.User) ([]string, error) {
 	scanner := bufio.NewScanner(ra.reader)
 	var result []string
 	for scanner.Scan() {
@@ -53,7 +53,7 @@ func (ra *mockReadAppender) Read(user repo.User) ([]string, error) {
 	return result, nil
 }
 
-func (ra *mockReadAppender) Append(user repo.User, data []string) error {
+func (ra *mockReadAppender) Append(user auth.User, data []string) error {
 	for _, d := range data {
 		ra.writer.Write([]byte(d))
 	}

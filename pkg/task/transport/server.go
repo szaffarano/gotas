@@ -2,8 +2,6 @@ package transport
 
 import (
 	"io"
-
-	"github.com/szaffarano/gotas/pkg/config"
 )
 
 // Server implements the transport to communicate taskd clients with the server
@@ -16,6 +14,6 @@ type Server interface {
 }
 
 // NewServer creates a new taskd server working according to the configuration
-func NewServer(cfg config.Config) (Server, error) {
+func NewServer(cfg TLSConfig) (Server, error) {
 	return newTLSServer(cfg)
 }

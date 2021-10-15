@@ -11,7 +11,7 @@ import (
 
 	"github.com/apex/log"
 	"github.com/google/uuid"
-	"github.com/szaffarano/gotas/pkg/task/repo"
+	"github.com/szaffarano/gotas/pkg/task/auth"
 )
 
 const (
@@ -20,8 +20,24 @@ const (
 	RequestLimitInBytes = 1048576
 )
 
+// Reader reads user transactions
+type Reader interface {
+	Read(user auth.User) ([]string, error)
+}
+
+// Appender appends new transactions for a given user
+type Appender interface {
+	Append(user auth.User, data []string) error
+}
+
+// ReadAppender groups the basic Read and Append taskd functionality.
+type ReadAppender interface {
+	Reader
+	Appender
+}
+
 // Process processes a taskd client request
-func Process(client io.ReadWriteCloser, auth Authenticator, ra repo.ReadAppender) {
+func Process(client io.ReadWriteCloser, auth auth.Authenticator, ra ReadAppender) {
 	defer client.Close()
 
 	var msg, resp Message
@@ -73,7 +89,7 @@ func receiveMessage(client io.Reader) (msg Message, err error) {
 	return NewMessage(string(buffer))
 }
 
-func processMessage(msg Message, user repo.User, ra repo.ReadAppender) (resp Message) {
+func processMessage(msg Message, user auth.User, ra ReadAppender) (resp Message) {
 	switch t := msg.Header["type"]; t {
 	case "sync":
 		return sync(msg, user, ra)
@@ -96,20 +112,20 @@ func replyMessage(client io.Writer, resp Message) error {
 	return nil
 }
 
-func isValid(msg Message, auth Authenticator) (repo.User, error) {
+func isValid(msg Message, a auth.Authenticator) (auth.User, error) {
 	userName := msg.Header["user"]
 	key := msg.Header["key"]
 	orgName := msg.Header["org"]
 
 	// verify user credentials
-	loggedUser, err := auth.Authenticate(orgName, userName, key)
+	loggedUser, err := a.Authenticate(orgName, userName, key)
 	if err != nil {
 		return loggedUser, err
 	}
 
 	// verify protocol version
 	if msg.Header["protocol"] != "v1" {
-		return repo.User{}, fmt.Errorf("protocol not supported (%s)", msg.Header["protocol"])
+		return auth.User{}, fmt.Errorf("protocol not supported (%s)", msg.Header["protocol"])
 	}
 
 	// TODO verify redirect
@@ -117,7 +133,7 @@ func isValid(msg Message, auth Authenticator) (repo.User, error) {
 	return loggedUser, nil
 }
 
-func sync(msg Message, user repo.User, ra repo.ReadAppender) Message {
+func sync(msg Message, user auth.User, ra ReadAppender) Message {
 	var err error
 	tx, clientData := getClientData(msg.Payload)
 	serverData, err := ra.Read(user)

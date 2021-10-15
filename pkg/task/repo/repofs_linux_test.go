@@ -16,7 +16,7 @@ func TestNewRepositoryOnlyLinux(t *testing.T) {
 		err := os.Chmod(baseDir, 0400)
 		assert.Nil(t, err)
 
-		_, err = NewRepository(baseDir)
+		_, err = NewRepository(baseDir, defaultConfig)
 
 		assert.NotNil(t, err)
 	})
@@ -28,7 +28,7 @@ func TestNewRepositoryOnlyLinux(t *testing.T) {
 		err := os.Chmod(baseDir, 0000)
 		assert.Nil(t, err)
 
-		_, err = NewRepository(baseDir)
+		_, err = NewRepository(baseDir, defaultConfig)
 
 		assert.NotNil(t, err)
 	})

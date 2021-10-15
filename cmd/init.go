@@ -1,8 +1,12 @@
 package cmd
 
 import (
+	"os"
+	"path/filepath"
+
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
+	"github.com/szaffarano/gotas/pkg/task"
 	"github.com/szaffarano/gotas/pkg/task/repo"
 )
 
@@ -13,7 +17,19 @@ func initCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			dataDir := cmd.Flag(dataFlag).Value.String()
 
-			repository, err := repo.NewRepository(dataDir)
+			// set default values
+			defaultConfig := map[string]string{
+				task.Confirmation: "true",
+				task.Log:          filepath.Join(os.TempDir(), "taskd.log"),
+				task.PidFile:      filepath.Join(os.TempDir(), "taskd.pid"),
+				task.QueueSize:    "10",
+				task.RequestLimit: "1048576",
+				task.Root:         "dataDir",
+				task.Trust:        "strict",
+				task.Verbose:      "true",
+			}
+
+			repository, err := repo.NewRepository(dataDir, defaultConfig)
 			if err == nil {
 				log.Infof("Empty repository initialized: %q", repository)
 			}

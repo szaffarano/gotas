@@ -10,6 +10,7 @@ import (
 	"github.com/apex/log"
 	"github.com/google/uuid"
 	"github.com/szaffarano/gotas/pkg/config"
+	"github.com/szaffarano/gotas/pkg/task/auth"
 )
 
 const (
@@ -23,11 +24,11 @@ const (
 // ABM, initialization, etc.
 type Repository struct {
 	baseDir string
-	orgs    []Organization
+	orgs    []auth.Organization
 }
 
 // NewRepository create a brand new repository in the given dataDir
-func NewRepository(dataDir string) (*Repository, error) {
+func NewRepository(dataDir string, defaultConfig map[string]string) (*Repository, error) {
 	if fileInfo, err := os.Stat(dataDir); err != nil {
 		return nil, fmt.Errorf("read dir info %v: %v", dataDir, err)
 	} else if !fileInfo.IsDir() {
@@ -51,15 +52,9 @@ func NewRepository(dataDir string) (*Repository, error) {
 		return nil, err
 	}
 
-	// set default values
-	// cfg.SetBool(task.Confirmation, true)
-	// cfg.Set(task.Log, filepath.Join(os.TempDir(), "taskd.log"))
-	// cfg.Set(task.PidFile, filepath.Join(os.TempDir(), "taskd.pid"))
-	// cfg.SetInt(task.QueueSize, 10)
-	// cfg.SetInt(task.RequestLimit, 1048576)
-	// cfg.Set(task.Root, dataDir)
-	// cfg.Set(task.Trust, "strict")
-	// cfg.SetBool(task.Verbose, true)
+	for k, v := range defaultConfig {
+		cfg.Set(k, v)
+	}
 
 	if err := config.Save(cfg); err != nil {
 		return nil, err
@@ -107,7 +102,7 @@ func OpenRepository(dataDir string) (*Repository, error) {
 }
 
 // NewOrg initializes a new Organization creating the underlying file system structure.
-func (r *Repository) NewOrg(orgName string) (*Organization, error) {
+func (r *Repository) NewOrg(orgName string) (*auth.Organization, error) {
 	for _, org := range r.orgs {
 		if org.Name == orgName {
 			return nil, fmt.Errorf("organization %q already exists", orgName)
@@ -122,15 +117,15 @@ func (r *Repository) NewOrg(orgName string) (*Organization, error) {
 		return nil, fmt.Errorf("creating users dir under org: %v", err)
 	}
 
-	newOrg := Organization{Name: orgName}
+	newOrg := auth.Organization{Name: orgName}
 	r.orgs = append(r.orgs, newOrg)
 
 	return &newOrg, nil
 }
 
 // GetOrg initializes an Organization reading the information from the underlying file system.
-func (r *Repository) GetOrg(orgName string) (*Organization, error) {
-	var users []User
+func (r *Repository) GetOrg(orgName string) (*auth.Organization, error) {
+	var users []auth.User
 	root := filepath.Join(r.baseDir, orgsFolder, orgName, usersFolder)
 
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
@@ -144,7 +139,7 @@ func (r *Repository) GetOrg(orgName string) (*Organization, error) {
 			}
 			userConfigPath := filepath.Join(path, "config")
 			if userConfig, err := config.Load(userConfigPath); err == nil {
-				users = append(users, User{
+				users = append(users, auth.User{
 					Key:  d.Name(),
 					Name: userConfig.Get("user"),
 				})
@@ -160,7 +155,7 @@ func (r *Repository) GetOrg(orgName string) (*Organization, error) {
 		return nil, fmt.Errorf("getting users: %v", err)
 	}
 
-	org := Organization{Name: orgName, Users: users}
+	org := auth.Organization{Name: orgName, Users: users}
 	for idx := range users {
 		users[idx].Org = &org
 	}
@@ -168,7 +163,7 @@ func (r *Repository) GetOrg(orgName string) (*Organization, error) {
 }
 
 // AddUser adds a new userr to the given Organization.
-func (r *Repository) AddUser(orgName string, userName string) (*User, error) {
+func (r *Repository) AddUser(orgName string, userName string) (*auth.User, error) {
 	org, err := r.GetOrg(orgName)
 	if err != nil {
 		return nil, err
@@ -195,7 +190,7 @@ func (r *Repository) AddUser(orgName string, userName string) (*User, error) {
 		return nil, fmt.Errorf("saving user config: %v", err)
 	}
 
-	return &User{
+	return &auth.User{
 		Name: userName,
 		Key:  key,
 		Org:  org,

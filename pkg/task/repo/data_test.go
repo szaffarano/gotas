@@ -68,7 +68,7 @@ func TestCopy(t *testing.T) {
 	})
 }
 
-func validReadAppender(t *testing.T) ReadAppender {
+func validReadAppender(t *testing.T) *DefaultReadAppender {
 	t.Helper()
 
 	return NewDefaultReadAppender(filepath.Join("testdata", "repo_one"))

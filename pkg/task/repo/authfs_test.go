@@ -5,10 +5,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/szaffarano/gotas/pkg/task/auth"
 )
 
 func TestAuthenticate(t *testing.T) {
-	auth := validAuthenticator(t)
+	a := validAuthenticator(t)
 	cases := []struct {
 		org     string
 		name    string
@@ -23,13 +24,13 @@ func TestAuthenticate(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		u, err := auth.Authenticate(c.org, c.name, c.key)
+		u, err := a.Authenticate(c.org, c.name, c.key)
 		if c.success {
 			assert.Nil(t, err)
 			assert.Equal(t, u.Name, "noeh")
 		} else {
 			assert.NotNil(t, err)
-			authErr, ok := err.(AuthenticationError)
+			authErr, ok := err.(auth.AuthenticationError)
 			assert.True(t, ok)
 			assert.NotEmpty(t, authErr.Msg)
 			assert.NotEmpty(t, authErr.Error())

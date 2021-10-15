@@ -26,7 +26,14 @@ func serverCmd() *cobra.Command {
 				return err
 			}
 
-			transp, err := transport.NewServer(cfg)
+			tlsConfig := transport.TLSConfig{
+				CaCert:      cfg.Get(task.CaCert),
+				ServerCert:  cfg.Get(task.ServerCert),
+				ServerKey:   cfg.Get(task.ServerKey),
+				BindAddress: cfg.Get(task.BindAddress),
+			}
+
+			transp, err := transport.NewServer(tlsConfig)
 			if err != nil {
 				return fmt.Errorf("initializing server: %v", err)
 			}

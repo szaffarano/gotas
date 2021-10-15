@@ -8,23 +8,9 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+
+	"github.com/szaffarano/gotas/pkg/task/auth"
 )
-
-// Reader reads user transactions
-type Reader interface {
-	Read(user User) ([]string, error)
-}
-
-// Appender appends new transactions for a given user
-type Appender interface {
-	Append(user User, data []string) error
-}
-
-// ReadAppender groups the basic Read and Append taskd functionality.
-type ReadAppender interface {
-	Reader
-	Appender
-}
 
 // DefaultReadAppender is the default ReadAppender implementation on top of a
 // simple fylesystem structure
@@ -40,7 +26,7 @@ func NewDefaultReadAppender(baseDir string) *DefaultReadAppender {
 type source string
 
 // Read returns all the transaction information belonging to the given user.
-func (ra *DefaultReadAppender) Read(user User) ([]string, error) {
+func (ra *DefaultReadAppender) Read(user auth.User) ([]string, error) {
 	var file *os.File
 	var err error
 	txFile := filepath.Join(ra.baseDir, orgsFolder, user.Org.Name, usersFolder, user.Key, txFile)
@@ -60,7 +46,7 @@ func (ra *DefaultReadAppender) Read(user User) ([]string, error) {
 }
 
 // Append add data at the end of the transaction user database.
-func (ra *DefaultReadAppender) Append(user User, data []string) error {
+func (ra *DefaultReadAppender) Append(user auth.User, data []string) error {
 	txFilePath := filepath.Join(ra.baseDir, orgsFolder, user.Org.Name, usersFolder, user.Key, txFile)
 	txFileTempPath := filepath.Join(ra.baseDir, orgsFolder, user.Org.Name, usersFolder, user.Key, txFileTemp)
 	var file *os.File

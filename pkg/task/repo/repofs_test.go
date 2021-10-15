@@ -7,14 +7,26 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/szaffarano/gotas/pkg/task"
 )
+
+var defaultConfig = map[string]string{
+	task.Confirmation: "true",
+	task.Log:          filepath.Join(os.TempDir(), "taskd.log"),
+	task.PidFile:      filepath.Join(os.TempDir(), "taskd.pid"),
+	task.QueueSize:    "10",
+	task.RequestLimit: "1048576",
+	task.Root:         "dataDir",
+	task.Trust:        "strict",
+	task.Verbose:      "true",
+}
 
 func TestNewRepository(t *testing.T) {
 	t.Run("new repository works with empty directory", func(t *testing.T) {
 		baseDir := tempDir(t)
 		defer os.RemoveAll(baseDir)
 
-		repo, err := NewRepository(baseDir)
+		repo, err := NewRepository(baseDir, defaultConfig)
 
 		assert.Nil(t, err)
 		assert.NotNil(t, repo)
@@ -24,17 +36,17 @@ func TestNewRepository(t *testing.T) {
 		baseDir := tempDir(t)
 		defer os.RemoveAll(baseDir)
 
-		repo, err := NewRepository(baseDir)
+		repo, err := NewRepository(baseDir, defaultConfig)
 
 		assert.Nil(t, err)
 		assert.NotNil(t, repo)
 
-		_, err = NewRepository(baseDir)
+		_, err = NewRepository(baseDir, defaultConfig)
 		assert.NotNil(t, err)
 	})
 
 	t.Run("new repository fails with non existent repository", func(t *testing.T) {
-		_, err := NewRepository("fake dir")
+		_, err := NewRepository("fake dir", defaultConfig)
 		assert.NotNil(t, err)
 	})
 
@@ -47,7 +59,7 @@ func TestNewRepository(t *testing.T) {
 		assert.Nil(t, err)
 		defer file.Close()
 
-		_, err = NewRepository(filePath)
+		_, err = NewRepository(filePath, defaultConfig)
 		assert.NotNil(t, err)
 	})
 }
