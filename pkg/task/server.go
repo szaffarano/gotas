@@ -72,7 +72,7 @@ func receiveMessage(client io.Reader) (msg Message, err error) {
 	buffer := make([]byte, 4)
 
 	if num, err := client.Read(buffer); err != nil || num != 4 {
-		return msg, fmt.Errorf("reading size, read %v bytes: %v", num, err)
+		return msg, fmt.Errorf("reading size, read %v bytes, got %v", num, err)
 	}
 
 	messageSize := int(binary.BigEndian.Uint32(buffer[:4]))
@@ -83,7 +83,7 @@ func receiveMessage(client io.Reader) (msg Message, err error) {
 	buffer = make([]byte, messageSize-4)
 
 	if _, err := client.Read(buffer); err != nil {
-		return msg, fmt.Errorf("reading client: %v", err)
+		return msg, fmt.Errorf("reading client, got %v", err)
 	}
 
 	return NewMessage(string(buffer))
