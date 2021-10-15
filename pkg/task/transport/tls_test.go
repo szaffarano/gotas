@@ -13,12 +13,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/szaffarano/gotas/pkg/config"
-	"github.com/szaffarano/gotas/pkg/task/task"
 )
 
 func TestServer(t *testing.T) {
 	t.Run("server with valid config", func(t *testing.T) {
-		server, client, cleanup := newTaskdClientServer(t, "server.conf", "client.conf")
+		server, client, cleanup := newTaskdClientServer(t, "client.conf")
 		defer cleanup()
 
 		ch := make(chan []byte)
@@ -49,24 +48,29 @@ func TestServer(t *testing.T) {
 	})
 
 	t.Run("invalid configurations", func(t *testing.T) {
+		base := filepath.Join("testdata", "certs")
+
 		cases := []struct {
-			title     string
-			repo      string
-			extraConf []string
+			title       string
+			caCert      string
+			serverCert  string
+			serverKey   string
+			bindAddress string
 		}{
-			{"invalid key cert", "server.invalid-key.conf", []string{}},
-			{"malformed ca cert", "server.malformed-ca.conf", []string{}},
-			{"invalid ca cert", "server.invalid-ca.conf", []string{}},
-			{"invalid invalid bind address", "server.conf", []string{task.BindAddress, "1:2:3:localhost"}},
+			{"invalid key cert", "ca.pem", "server.pem", "invalid-server-key", ""},
+			{"malformed ca cert", "ca-invalid.pem", "server.pem", "server.key", ""},
+			{"invalid ca cert", "non-existent", "server.pem", "server.key", ""},
+			{"invalid bind address", "ca.pem", "server.pem", "server.key", "1:2:3:localhost"},
 		}
 
 		for _, c := range cases {
 			t.Run(c.title, func(t *testing.T) {
-				opts := make([]interface{}, len(c.extraConf))
-				for idx, o := range c.extraConf {
-					opts[idx] = o
+				cfg := TLSConfig{
+					CaCert:      filepath.Join(base, c.caCert),
+					ServerCert:  filepath.Join(base, c.serverCert),
+					ServerKey:   filepath.Join(base, c.serverKey),
+					BindAddress: filepath.Join(base, c.bindAddress),
 				}
-				cfg := newTaskdConfig(t, c.repo, opts...)
 
 				srv, err := NewServer(cfg)
 				assert.NotNil(t, err)
@@ -76,14 +80,20 @@ func TestServer(t *testing.T) {
 	})
 }
 
-func newTaskdClientServer(t *testing.T, srvCfgFile, clCfgFile string) (net.Conn, io.ReadWriteCloser, func()) {
+func newTaskdClientServer(t *testing.T, clCfgFile string) (net.Conn, io.ReadWriteCloser, func()) {
 	t.Helper()
 
 	const ack = "ack"
 	var client net.Conn
 	var server io.ReadWriteCloser
 
-	srvConfig := newTaskdConfig(t, srvCfgFile, task.BindAddress, fmt.Sprintf("localhost:%d", nextFreePort(t, 1025)))
+	base := filepath.Join("testdata", "certs")
+	srvConfig := TLSConfig{
+		CaCert:      filepath.Join(base, "ca.pem"),
+		ServerCert:  filepath.Join(base, "server.pem"),
+		ServerKey:   filepath.Join(base, "server.key"),
+		BindAddress: fmt.Sprintf("localhost:%d", nextFreePort(t, 1025)),
+	}
 	clientCfg := newTLSConfig(t, clCfgFile)
 
 	ready := make(chan []byte)
@@ -108,7 +118,7 @@ func newTaskdClientServer(t *testing.T, srvCfgFile, clCfgFile string) (net.Conn,
 		ready <- buf[:size]
 	}()
 
-	client, err = tls.Dial("tcp", srvConfig.Get(task.BindAddress), clientCfg)
+	client, err = tls.Dial("tcp", srvConfig.BindAddress, clientCfg)
 	if err != nil {
 		assert.FailNow(t, err.Error())
 	}
@@ -166,19 +176,4 @@ func newTLSConfig(t *testing.T, conf string) *tls.Config {
 		Certificates: []tls.Certificate{cert},
 		RootCAs:      caCertPool,
 	}
-}
-
-func newTaskdConfig(t *testing.T, conf string, extra ...interface{}) config.Config {
-	t.Helper()
-
-	cfg, err := config.Load(filepath.Join("testdata", conf))
-	if err != nil {
-		assert.FailNowf(t, "Error reading configuration: %s", err.Error())
-	}
-
-	for i := 0; i < len(extra); i += 2 {
-		cfg.Set(extra[i].(string), extra[i+1].(string))
-	}
-
-	return cfg
 }

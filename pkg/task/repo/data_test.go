@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/szaffarano/gotas/pkg/config"
 )
 
 func TestGetData(t *testing.T) {
@@ -69,15 +68,10 @@ func TestCopy(t *testing.T) {
 	})
 }
 
-func validReadAppender(t *testing.T) ReadAppender {
+func validReadAppender(t *testing.T) *DefaultReadAppender {
 	t.Helper()
 
-	configFilePath := filepath.Join("testdata", "repo_one", "config")
-	cfg, err := config.Load(configFilePath)
-	if err != nil {
-		assert.FailNow(t, err.Error())
-	}
-	return NewDefaultReadAppender(cfg)
+	return NewDefaultReadAppender(filepath.Join("testdata", "repo_one"))
 }
 
 func tempFile(t *testing.T) *os.File {

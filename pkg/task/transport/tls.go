@@ -9,17 +9,23 @@ import (
 	"net"
 
 	"github.com/apex/log"
-	"github.com/szaffarano/gotas/pkg/config"
-	"github.com/szaffarano/gotas/pkg/task/task"
 )
 
+// TLSConfig exposes the configuration needed by the tls transport
+type TLSConfig struct {
+	CaCert      string
+	ServerCert  string
+	ServerKey   string
+	BindAddress string
+}
+
 // NewTlsServer creates a new tls-based server
-func newTLSServer(cfg config.Config) (Server, error) {
+func newTLSServer(cfg TLSConfig) (Server, error) {
 	var ca []byte
 	var cert tls.Certificate
 	var err error
 
-	if ca, err = ioutil.ReadFile(cfg.Get(task.CaCert)); err != nil {
+	if ca, err = ioutil.ReadFile(cfg.CaCert); err != nil {
 		return nil, fmt.Errorf("reading root CA file: %v", err)
 	}
 
@@ -28,7 +34,7 @@ func newTLSServer(cfg config.Config) (Server, error) {
 		return nil, fmt.Errorf("reading creating root CA pool: %v", err)
 	}
 
-	if cert, err = tls.LoadX509KeyPair(cfg.Get(task.ServerCert), cfg.Get(task.ServerKey)); err != nil {
+	if cert, err = tls.LoadX509KeyPair(cfg.ServerCert, cfg.ServerKey); err != nil {
 		return nil, fmt.Errorf("reading certificate file: %v", err)
 	}
 
@@ -48,12 +54,12 @@ func newTLSServer(cfg config.Config) (Server, error) {
 		ClientAuth: tls.RequireAndVerifyClientCert,
 	}
 
-	listener, err := tls.Listen("tcp", cfg.Get(task.BindAddress), tlsCfg)
+	listener, err := tls.Listen("tcp", cfg.BindAddress, tlsCfg)
 	if err != nil {
 		return nil, err
 	}
 
-	log.Infof("Listening on %s...", cfg.Get(task.BindAddress))
+	log.Infof("Listening on %s...", cfg.BindAddress)
 	return &tlsServer{listener}, nil
 }
 

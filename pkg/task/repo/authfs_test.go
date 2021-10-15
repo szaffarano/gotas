@@ -5,11 +5,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/szaffarano/gotas/pkg/config"
+	"github.com/szaffarano/gotas/pkg/task/auth"
 )
 
 func TestAuthenticate(t *testing.T) {
-	auth := validAuthenticator(t)
+	a := validAuthenticator(t)
 	cases := []struct {
 		org     string
 		name    string
@@ -24,13 +24,13 @@ func TestAuthenticate(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		u, err := auth.Authenticate(c.org, c.name, c.key)
+		u, err := a.Authenticate(c.org, c.name, c.key)
 		if c.success {
 			assert.Nil(t, err)
 			assert.Equal(t, u.Name, "noeh")
 		} else {
 			assert.NotNil(t, err)
-			authErr, ok := err.(AuthenticationError)
+			authErr, ok := err.(auth.AuthenticationError)
 			assert.True(t, ok)
 			assert.NotEmpty(t, authErr.Msg)
 			assert.NotEmpty(t, authErr.Error())
@@ -38,15 +38,11 @@ func TestAuthenticate(t *testing.T) {
 	}
 }
 
-func validAuthenticator(t *testing.T) Authenticator {
+func validAuthenticator(t *testing.T) *DefaultAuthenticator {
 	t.Helper()
 
-	configFilePath := filepath.Join("testdata", "repo_one", "config")
-	cfg, err := config.Load(configFilePath)
-	if err != nil {
-		assert.FailNow(t, err.Error())
-	}
-	auth, err := NewDefaultAuthenticator(cfg)
+	configFilePath := filepath.Join("testdata", "repo_one")
+	auth, err := NewDefaultAuthenticator(configFilePath)
 	if err != nil {
 		assert.FailNow(t, err.Error())
 	}

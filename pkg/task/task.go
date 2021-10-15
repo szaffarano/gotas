@@ -12,7 +12,7 @@ import (
 
 	"github.com/apex/log"
 	"github.com/google/uuid"
-	"github.com/szaffarano/gotas/pkg/task/parser"
+	"github.com/szaffarano/gotas/pkg/parser"
 )
 
 const (
@@ -105,19 +105,6 @@ var (
 type Task struct {
 	annotationCount int
 	data            map[string]string
-}
-
-// Organization represents an Organization grouping users.
-type Organization struct {
-	Name  string
-	Users []User
-}
-
-// User is a system user, it belongs to one organization.
-type User struct {
-	Name string
-	Key  string
-	Org  *Organization
 }
 
 // NewTask parses a raw string as a taskwarrior Task.

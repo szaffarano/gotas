@@ -7,8 +7,8 @@ import (
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/szaffarano/gotas/pkg/config"
+	"github.com/szaffarano/gotas/pkg/task"
 	"github.com/szaffarano/gotas/pkg/task/repo"
-	"github.com/szaffarano/gotas/pkg/task/server"
 	"github.com/szaffarano/gotas/pkg/task/transport"
 )
 
@@ -26,7 +26,14 @@ func serverCmd() *cobra.Command {
 				return err
 			}
 
-			transp, err := transport.NewServer(cfg)
+			tlsConfig := transport.TLSConfig{
+				CaCert:      cfg.Get(task.CaCert),
+				ServerCert:  cfg.Get(task.ServerCert),
+				ServerKey:   cfg.Get(task.ServerKey),
+				BindAddress: cfg.Get(task.BindAddress),
+			}
+
+			transp, err := transport.NewServer(tlsConfig)
 			if err != nil {
 				return fmt.Errorf("initializing server: %v", err)
 			}
@@ -36,14 +43,14 @@ func serverCmd() *cobra.Command {
 				}
 			}()
 
-			auth, err := repo.NewDefaultAuthenticator(cfg)
+			auth, err := repo.NewDefaultAuthenticator(dataDir)
 			if err != nil {
 				return err
 			}
 
 			// TODO implement graceful shutdown
 
-			ra := repo.NewDefaultReadAppender(cfg)
+			ra := repo.NewDefaultReadAppender(dataDir)
 
 			for {
 				client, err := transp.NextClient()
@@ -51,7 +58,7 @@ func serverCmd() *cobra.Command {
 					log.Errorf("Error receiving client: %s", err.Error())
 				}
 
-				go server.Process(client, auth, ra)
+				go task.Process(client, auth, ra)
 			}
 		},
 	}
