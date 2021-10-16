@@ -1,9 +1,6 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
-
 	"github.com/szaffarano/gotas/cmd"
 )
 
@@ -15,21 +12,5 @@ var (
 )
 
 func main() {
-	cmd.Execute(getVersion())
-}
-
-func getVersion() string {
-	version := struct {
-		Version string `json:",omitempty"`
-		Commit  string `json:",omitempty"`
-		Date    string `json:",omitempty"`
-		BuiltBy string `json:",omitempty"`
-	}{version, commit, date, builtBy}
-
-	var buffer bytes.Buffer
-	if err := json.NewEncoder(&buffer).Encode(version); err != nil {
-		panic("Error building version")
-	}
-
-	return buffer.String()
+	cmd.Execute(cmd.Version{Version: version, Commit: commit, Date: date, BuiltBy: builtBy})
 }

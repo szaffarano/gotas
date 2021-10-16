@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/szaffarano/gotas/pkg/config"
 	"github.com/szaffarano/gotas/pkg/task"
@@ -42,6 +41,7 @@ func serverCmd() *cobra.Command {
 					panic(fmt.Sprintf("error closing server: %v", err))
 				}
 			}()
+			log.Infof("Listening on %s...", tlsConfig.BindAddress)
 
 			auth, err := repo.NewDefaultAuthenticator(dataDir)
 			if err != nil {

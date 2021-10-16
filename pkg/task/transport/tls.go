@@ -7,8 +7,6 @@ import (
 	"io"
 	"io/ioutil"
 	"net"
-
-	"github.com/apex/log"
 )
 
 // TLSConfig exposes the configuration needed by the tls transport
@@ -59,7 +57,6 @@ func newTLSServer(cfg TLSConfig) (Server, error) {
 		return nil, err
 	}
 
-	log.Infof("Listening on %s...", cfg.BindAddress)
 	return &tlsServer{listener}, nil
 }
 

@@ -7,9 +7,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/apex/log"
 	"github.com/google/uuid"
 	"github.com/szaffarano/gotas/pkg/config"
+	"github.com/szaffarano/gotas/pkg/logger"
 	"github.com/szaffarano/gotas/pkg/task/auth"
 )
 
@@ -19,6 +19,12 @@ const (
 	txFile      = "tx.data"
 	txFileTemp  = "tx.tmp.data"
 )
+
+var log *logger.Logger
+
+func init() {
+	log = logger.Log()
+}
 
 // Repository defines an API with the task server operations, orgs and users
 // ABM, initialization, etc.
