@@ -26,6 +26,7 @@ type flags struct {
 	taskData string
 }
 
+// Version is the app version
 type Version struct {
 	Version string `json:",omitempty"`
 	Commit  string `json:",omitempty"`
