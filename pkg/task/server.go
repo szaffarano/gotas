@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/apex/log"
 	"github.com/google/uuid"
 	"github.com/szaffarano/gotas/pkg/task/auth"
 )

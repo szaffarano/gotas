@@ -10,8 +10,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/apex/log"
 	"github.com/google/uuid"
+	"github.com/szaffarano/gotas/pkg/logger"
 	"github.com/szaffarano/gotas/pkg/parser"
 )
 
@@ -100,6 +100,12 @@ var (
 		504: "Request too big",
 	}
 )
+
+var log *logger.Logger
+
+func init() {
+	log = logger.Log()
+}
 
 // Task represents each task sent by the client to be synced
 type Task struct {

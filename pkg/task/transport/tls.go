@@ -8,7 +8,7 @@ import (
 	"io/ioutil"
 	"net"
 
-	"github.com/apex/log"
+	"github.com/szaffarano/gotas/pkg/logger"
 )
 
 // TLSConfig exposes the configuration needed by the tls transport
@@ -17,6 +17,12 @@ type TLSConfig struct {
 	ServerCert  string
 	ServerKey   string
 	BindAddress string
+}
+
+var log *logger.Logger
+
+func init() {
+	log = logger.Log()
 }
 
 // NewTlsServer creates a new tls-based server
@@ -59,7 +65,6 @@ func newTLSServer(cfg TLSConfig) (Server, error) {
 		return nil, err
 	}
 
-	log.Infof("Listening on %s...", cfg.BindAddress)
 	return &tlsServer{listener}, nil
 }
 

@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/szaffarano/gotas/pkg/task"
 	"github.com/szaffarano/gotas/pkg/task/repo"
