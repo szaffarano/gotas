@@ -26,7 +26,7 @@ func init() {
 }
 
 // NewTlsServer creates a new tls-based server
-func newTLSServer(cfg TLSConfig, handlerFunc Handler) (Server, error) {
+func newTLSServer(cfg TLSConfig, maxConcurrency int, handlerFunc Handler) (Server, error) {
 	var ca []byte
 	var cert tls.Certificate
 	var err error
@@ -72,7 +72,7 @@ func newTLSServer(cfg TLSConfig, handlerFunc Handler) (Server, error) {
 	server.wg.Add(1)
 	server.handler = handlerFunc
 
-	go server.serve()
+	go server.serve(maxConcurrency)
 
 	return &server, nil
 }
@@ -97,8 +97,10 @@ func (s *tlsServer) Close() error {
 	return err
 }
 
-func (s *tlsServer) serve() {
+func (s *tlsServer) serve(maxConcurrency int) {
 	defer s.wg.Done()
+
+	concurrency := make(chan interface{}, maxConcurrency)
 
 	for {
 		conn, err := s.listener.Accept()
@@ -111,8 +113,12 @@ func (s *tlsServer) serve() {
 			}
 		}
 		s.wg.Add(1)
+		concurrency <- 1
 		go func() {
-			defer s.wg.Done()
+			defer func() {
+				<-concurrency
+				s.wg.Done()
+			}()
 
 			s.handler(conn)
 		}()
