@@ -56,7 +56,11 @@ func Execute(version Version) {
 		Short:         "Taskwarrior server",
 		Long: `Gotas aims to implement a taskwarrior server (aka taskd) using Go 
 programming language`,
-		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			if skipTaskDataValidation(cmd) {
+				return nil
+			}
+
 			if flags.taskData == "" {
 				value, ok := os.LookupEnv(taskdDataVariableName)
 				if !ok {
@@ -88,6 +92,19 @@ programming language`,
 	rootCmd.AddCommand(resumeCmd())
 	rootCmd.AddCommand(serverCmd())
 	rootCmd.AddCommand(suspendCmd())
+	rootCmd.AddCommand(pkiCmd())
 
 	cobra.CheckErr(rootCmd.Execute())
+}
+
+func skipTaskDataValidation(cmd *cobra.Command) bool {
+	for {
+		if cmd.Name() == "pki" {
+			return true
+		} else if cmd.HasParent() {
+			cmd = cmd.Parent()
+		} else {
+			return false
+		}
+	}
 }

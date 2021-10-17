@@ -41,3 +41,6 @@ gotas
 dist/
 
 coverage*html
+
+*.key
+*.pem
