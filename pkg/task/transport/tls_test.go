@@ -135,7 +135,7 @@ func TestMaxConcurrency(t *testing.T) {
 		select {
 		case <-ack:
 			received++
-		case <-time.After(200 * time.Millisecond):
+		case <-time.After(1000 * time.Millisecond):
 			assert.False(t, timeouted)
 			assert.Equal(t, maxConcurrency, received)
 			timeouted = true
