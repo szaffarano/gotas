@@ -4,9 +4,11 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net"
+	"sync"
+
+	"github.com/szaffarano/gotas/pkg/logger"
 )
 
 // TLSConfig exposes the configuration needed by the tls transport
@@ -17,8 +19,14 @@ type TLSConfig struct {
 	BindAddress string
 }
 
+var log *logger.Logger
+
+func init() {
+	log = logger.Log()
+}
+
 // NewTlsServer creates a new tls-based server
-func newTLSServer(cfg TLSConfig) (Server, error) {
+func newTLSServer(cfg TLSConfig, handlerFunc Handler) (Server, error) {
 	var ca []byte
 	var cert tls.Certificate
 	var err error
@@ -57,38 +65,56 @@ func newTLSServer(cfg TLSConfig) (Server, error) {
 		return nil, err
 	}
 
-	return &tlsServer{listener}, nil
-}
+	server := tlsServer{}
 
-type tlsClient struct {
-	conn net.Conn
+	server.listener = listener
+	server.quit = make(chan interface{}, 1)
+	server.wg.Add(1)
+	server.handler = handlerFunc
+
+	go server.serve()
+
+	return &server, nil
 }
 
 type tlsServer struct {
 	listener net.Listener
+	quit     chan interface{}
+	wg       sync.WaitGroup
+	handler  Handler
 }
 
 func (s *tlsServer) Close() error {
-	return s.listener.Close()
+	defer close(s.quit)
+
+	s.quit <- true
+
+	err := s.listener.Close()
+
+	// wait indefinitely until all client connections finish
+	s.wg.Wait()
+
+	return err
 }
 
-func (c *tlsClient) Read(buf []byte) (int, error) {
-	return c.conn.Read(buf)
-}
+func (s *tlsServer) serve() {
+	defer s.wg.Done()
 
-func (c *tlsClient) Write(buf []byte) (int, error) {
-	return c.conn.Write(buf)
-}
+	for {
+		conn, err := s.listener.Accept()
+		if err != nil {
+			select {
+			case <-s.quit:
+				return
+			default:
+				log.Errorf("error receiving connection: %v", err)
+			}
+		}
+		s.wg.Add(1)
+		go func() {
+			defer s.wg.Done()
 
-func (c *tlsClient) Close() error {
-	return c.conn.Close()
-}
-
-func (s *tlsServer) NextClient() (io.ReadWriteCloser, error) {
-	conn, err := s.listener.Accept()
-	if err != nil {
-		return nil, err
+			s.handler(conn)
+		}()
 	}
-
-	return &tlsClient{conn}, nil
 }
