@@ -9,7 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/szaffarano/gotas/pkg/task/auth"
+	"github.com/szaffarano/gotas/task/auth"
 )
 
 // DefaultReadAppender is the default ReadAppender implementation on top of a

@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 
 	"github.com/google/uuid"
-	"github.com/szaffarano/gotas/pkg/config"
-	"github.com/szaffarano/gotas/pkg/logger"
-	"github.com/szaffarano/gotas/pkg/task/auth"
+	"github.com/szaffarano/gotas/config"
+	"github.com/szaffarano/gotas/logger"
+	"github.com/szaffarano/gotas/task/auth"
 )
 
 const (

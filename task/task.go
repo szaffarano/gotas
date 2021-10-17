@@ -11,8 +11,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
-	"github.com/szaffarano/gotas/pkg/logger"
-	"github.com/szaffarano/gotas/pkg/parser"
+	"github.com/szaffarano/gotas/logger"
+	"github.com/szaffarano/gotas/parser"
 )
 
 const (

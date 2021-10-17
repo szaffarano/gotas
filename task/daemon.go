@@ -7,9 +7,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/szaffarano/gotas/pkg/config"
-	"github.com/szaffarano/gotas/pkg/task/repo"
-	"github.com/szaffarano/gotas/pkg/task/transport"
+	"github.com/szaffarano/gotas/config"
+	"github.com/szaffarano/gotas/task/repo"
+	"github.com/szaffarano/gotas/task/transport"
 )
 
 // Serve starts task server based on an initial configuration.

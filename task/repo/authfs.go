@@ -1,6 +1,6 @@
 package repo
 
-import "github.com/szaffarano/gotas/pkg/task/auth"
+import "github.com/szaffarano/gotas/task/auth"
 
 // DefaultAuthenticator is the default Authenticator implementation on top of a
 // simple fylesystem structure

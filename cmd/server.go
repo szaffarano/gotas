@@ -4,8 +4,8 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
-	"github.com/szaffarano/gotas/pkg/config"
-	"github.com/szaffarano/gotas/pkg/task"
+	"github.com/szaffarano/gotas/config"
+	"github.com/szaffarano/gotas/task"
 )
 
 func serverCmd() *cobra.Command {

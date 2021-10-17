@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/szaffarano/gotas/pkg/task/auth"
+	"github.com/szaffarano/gotas/task/auth"
 )
 
 const (

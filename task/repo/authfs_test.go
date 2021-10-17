@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/szaffarano/gotas/pkg/task/auth"
+	"github.com/szaffarano/gotas/task/auth"
 )
 
 func TestAuthenticate(t *testing.T) {

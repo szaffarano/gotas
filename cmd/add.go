@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/szaffarano/gotas/pkg/task/repo"
+	"github.com/szaffarano/gotas/task/repo"
 )
 
 func addCmd() *cobra.Command {
