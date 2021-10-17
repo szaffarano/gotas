@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
-	"github.com/szaffarano/gotas/pkg/task"
-	"github.com/szaffarano/gotas/pkg/task/repo"
+	"github.com/szaffarano/gotas/task"
+	"github.com/szaffarano/gotas/task/repo"
 )
 
 func initCmd() *cobra.Command {

@@ -8,7 +8,7 @@ import (
 	"net"
 	"sync"
 
-	"github.com/szaffarano/gotas/pkg/logger"
+	"github.com/szaffarano/gotas/logger"
 )
 
 // TLSConfig exposes the configuration needed by the tls transport

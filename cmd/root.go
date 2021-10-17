@@ -7,7 +7,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/szaffarano/gotas/pkg/logger"
+	"github.com/szaffarano/gotas/logger"
 )
 
 const (
