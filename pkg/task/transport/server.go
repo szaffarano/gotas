@@ -15,6 +15,6 @@ type Server interface {
 type Handler func(io.ReadWriteCloser)
 
 // NewServer creates a new taskd server working according to the configuration
-func NewServer(cfg TLSConfig, handler Handler) (Server, error) {
-	return newTLSServer(cfg, handler)
+func NewServer(cfg TLSConfig, maxConcurrency int, handler Handler) (Server, error) {
+	return newTLSServer(cfg, maxConcurrency, handler)
 }

@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -75,12 +76,75 @@ func TestServer(t *testing.T) {
 					BindAddress: filepath.Join(base, c.bindAddress),
 				}
 
-				srv, err := NewServer(cfg, dummyHandler)
+				srv, err := NewServer(cfg, 1, dummyHandler)
 				assert.NotNil(t, err)
 				assert.Nil(t, srv)
 			})
 		}
 	})
+}
+
+func TestMaxConcurrency(t *testing.T) {
+	maxConcurrency := 3
+
+	base := filepath.Join("testdata", "certs")
+	srvConfig := TLSConfig{
+		CaCert:      filepath.Join(base, "ca.pem"),
+		ServerCert:  filepath.Join(base, "server.pem"),
+		ServerKey:   filepath.Join(base, "server.key"),
+		BindAddress: fmt.Sprintf("localhost:%d", nextFreePort(t, 1025)),
+	}
+	clientCfg := newTLSConfig(t, "client.conf")
+	var wg sync.WaitGroup
+	wg.Add(1)
+	ack := make(chan interface{})
+
+	handler := func(client io.ReadWriteCloser) {
+		defer client.Close()
+
+		buf := make([]byte, 10)
+		client.Read(buf)
+		ack <- 1
+		wg.Wait()
+	}
+
+	srv, err := newTLSServer(srvConfig, maxConcurrency, handler)
+	assert.Nil(t, err)
+	defer srv.Close()
+
+	for i := 0; i < maxConcurrency+1; i++ {
+		go func() {
+			client, err := tls.Dial("tcp", srvConfig.BindAddress, clientCfg)
+			if err != nil {
+				assert.FailNow(t, err.Error())
+			}
+
+			// force handshake
+			_, err = client.Write([]byte("ping"))
+			if err != nil {
+				assert.FailNow(t, err.Error())
+			}
+		}()
+	}
+
+	received := 0
+	timeouted := false
+	for received < maxConcurrency+1 {
+		select {
+		case <-ack:
+			received++
+		case <-time.After(200 * time.Millisecond):
+			assert.False(t, timeouted)
+			assert.Equal(t, maxConcurrency, received)
+			timeouted = true
+			wg.Done()
+		}
+	}
+	if !assert.True(t, timeouted, "No concurrency bounded applied") {
+		// finish all the ongoing connections
+		wg.Done()
+	}
+
 }
 
 func newTaskdClientServer(t *testing.T, clCfgFile string) (net.Conn, io.ReadWriteCloser, func()) {
@@ -112,7 +176,7 @@ func newTaskdClientServer(t *testing.T, clCfgFile string) (net.Conn, io.ReadWrit
 		ready <- buf[:size]
 	}
 
-	srv, err := newTLSServer(srvConfig, handler)
+	srv, err := newTLSServer(srvConfig, 1, handler)
 	if err != nil {
 		assert.FailNowf(t, "Error creating server: %s", err.Error())
 	}

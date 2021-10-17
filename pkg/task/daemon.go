@@ -35,7 +35,7 @@ func Serve(cfg config.Config) (err error) {
 		Process(client, auth, ra)
 	}
 
-	server, err := transport.NewServer(tlsConfig, handler)
+	server, err := transport.NewServer(tlsConfig, cfg.GetInt(QueueSize), handler)
 	if err != nil {
 		return fmt.Errorf("initializing server: %v", err)
 	}
