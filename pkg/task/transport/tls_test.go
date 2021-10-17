@@ -103,7 +103,9 @@ func TestMaxConcurrency(t *testing.T) {
 		defer client.Close()
 
 		buf := make([]byte, 10)
-		client.Read(buf)
+		count, err := client.Read(buf)
+		assert.Nil(t, err)
+		assert.Greater(t, count, 0)
 		ack <- 1
 		wg.Wait()
 	}
