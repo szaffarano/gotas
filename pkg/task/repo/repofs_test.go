@@ -7,18 +7,17 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/szaffarano/gotas/pkg/task"
 )
 
 var defaultConfig = map[string]string{
-	task.Confirmation: "true",
-	task.Log:          filepath.Join(os.TempDir(), "taskd.log"),
-	task.PidFile:      filepath.Join(os.TempDir(), "taskd.pid"),
-	task.QueueSize:    "10",
-	task.RequestLimit: "1048576",
-	task.Root:         "dataDir",
-	task.Trust:        "strict",
-	task.Verbose:      "true",
+	"Confirmation": "true",
+	"Log":          filepath.Join(os.TempDir(), "taskd.log"),
+	"PidFile":      filepath.Join(os.TempDir(), "taskd.pid"),
+	"QueueSize":    "10",
+	"RequestLimit": "1048576",
+	"Root":         "dataDir",
+	"Trust":        "strict",
+	"Verbose":      "true",
 }
 
 func TestNewRepository(t *testing.T) {

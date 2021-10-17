@@ -49,6 +49,9 @@ func TestServer(t *testing.T) {
 
 	t.Run("invalid configurations", func(t *testing.T) {
 		base := filepath.Join("testdata", "certs")
+		dummyHandler := func(_ io.ReadWriteCloser) {
+			assert.Fail(t, "unexpected handler call")
+		}
 
 		cases := []struct {
 			title       string
@@ -72,7 +75,7 @@ func TestServer(t *testing.T) {
 					BindAddress: filepath.Join(base, c.bindAddress),
 				}
 
-				srv, err := NewServer(cfg)
+				srv, err := NewServer(cfg, dummyHandler)
 				assert.NotNil(t, err)
 				assert.Nil(t, srv)
 			})
@@ -97,26 +100,22 @@ func newTaskdClientServer(t *testing.T, clCfgFile string) (net.Conn, io.ReadWrit
 	clientCfg := newTLSConfig(t, clCfgFile)
 
 	ready := make(chan []byte)
-	srv, err := newTLSServer(srvConfig)
-	if err != nil {
-		assert.FailNowf(t, "Error creating server: %s", err.Error())
-	}
-
-	go func() {
-		defer srv.Close()
+	handler := func(client io.ReadWriteCloser) {
 		buf := make([]byte, 10)
-		server, err = srv.NextClient()
-		if err != nil {
-			assert.FailNow(t, err.Error())
-		}
 		// read something to force TLS handshake
-		size, err := server.Read(buf)
+		size, err := client.Read(buf)
 		if err != nil {
 			ready <- []byte{}
 			assert.FailNow(t, err.Error())
 		}
+		server = client
 		ready <- buf[:size]
-	}()
+	}
+
+	srv, err := newTLSServer(srvConfig, handler)
+	if err != nil {
+		assert.FailNowf(t, "Error creating server: %s", err.Error())
+	}
 
 	client, err = tls.Dial("tcp", srvConfig.BindAddress, clientCfg)
 	if err != nil {
@@ -135,6 +134,7 @@ func newTaskdClientServer(t *testing.T, clCfgFile string) (net.Conn, io.ReadWrit
 	return client, server, func() {
 		assert.NoError(t, server.Close())
 		assert.NoError(t, client.Close())
+		srv.Close()
 	}
 }
 
