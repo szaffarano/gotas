@@ -61,6 +61,7 @@ func bootstrapLogging() {
 	config := zap.NewDevelopmentConfig()
 	config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
 	config.EncoderConfig.TimeKey = "timestamp"
+	config.EncoderConfig.CallerKey = ""
 	config.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 	zapLog, err := config.Build()
 	if err != nil {

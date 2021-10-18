@@ -91,7 +91,7 @@ func OpenRepository(dataDir string) (*Repository, error) {
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("opening repository: %v", err)
+		return nil, fmt.Errorf("opening repository: %v (%v)", dataDir, err)
 	}
 
 	repo := Repository{baseDir: dataDir}

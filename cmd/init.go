@@ -10,6 +10,7 @@ import (
 )
 
 func initCmd() *cobra.Command {
+
 	initCmd := cobra.Command{
 		Use:   "init",
 		Short: "Initializes a server instance at <data> directory.",
@@ -23,17 +24,19 @@ func initCmd() *cobra.Command {
 				task.PidFile:      filepath.Join(os.TempDir(), "taskd.pid"),
 				task.QueueSize:    "10",
 				task.RequestLimit: "1048576",
-				task.Root:         "dataDir",
+				task.Root:         dataDir,
 				task.Trust:        "strict",
 				task.Verbose:      "true",
 			}
 
 			repository, err := repo.NewRepository(dataDir, defaultConfig)
-			if err == nil {
-				log.Infof("Empty repository initialized: %q", repository)
+			if err != nil {
+				return err
 			}
 
-			return err
+			log.Infof("Empty repository initialized: %q", repository)
+
+			return nil
 		},
 	}
 
