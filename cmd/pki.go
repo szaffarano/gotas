@@ -151,8 +151,8 @@ func writePair(certPath, keyPath string, cert, key []byte) error {
 	if err := os.WriteFile(keyPath, key, 0600); err != nil {
 		return err
 	}
-	log.Infof("%v: crated successfully", certPath)
-	log.Infof("%v: crated successfully", keyPath)
+	log.Infof("%v: created successfully", certPath)
+	log.Infof("%v: created successfully", keyPath)
 	return nil
 }
 
