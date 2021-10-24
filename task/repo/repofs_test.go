@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -148,6 +149,31 @@ func TestNewOrganization(t *testing.T) {
 
 }
 
+func TestDelOrganization(t *testing.T) {
+	tempRepo := tempDir(t)
+	repoOne := filepath.Join("testdata", "repo_one")
+	defer os.RemoveAll(tempRepo)
+
+	copy(t, repoOne, tempRepo)
+
+	repo, err := OpenRepository(tempRepo)
+	assert.Nil(t, err)
+
+	t.Run("removes existing organization", func(t *testing.T) {
+		before := len(repo.orgs)
+		err := repo.DelOrg("Public")
+		assert.Nil(t, err)
+
+		assert.Equal(t, before-1, len(repo.orgs))
+	})
+
+	t.Run("removes organization fails if does not exists", func(t *testing.T) {
+		err := repo.DelOrg("Public")
+		assert.NotNil(t, err)
+	})
+
+}
+
 func TestNewUser(t *testing.T) {
 	repo, err := OpenRepository(filepath.Join("testdata", "repo_one"))
 	assert.Nil(t, err)
@@ -182,6 +208,34 @@ func TestNewUser(t *testing.T) {
 	})
 }
 
+func TestDelUser(t *testing.T) {
+	tempRepo := tempDir(t)
+	repoOne := filepath.Join("testdata", "repo_one")
+	defer os.RemoveAll(tempRepo)
+
+	copy(t, repoOne, tempRepo)
+
+	repo, err := OpenRepository(tempRepo)
+	assert.Nil(t, err)
+
+	t.Run("del existing user", func(t *testing.T) {
+		err := repo.DelUser("Public", "53938cd8-b72e-4c2a-9fb5-3cd183cf1fa7")
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("del non org user fails", func(t *testing.T) {
+		err := repo.DelUser("invalid", "53938cd8-b72e-4c2a-9fb5-3cd183cf1fa7")
+		assert.Error(t, err)
+	})
+
+	t.Run("del non existent user fails", func(t *testing.T) {
+		err := repo.DelUser("Public", "invalid")
+		assert.Error(t, err)
+	})
+
+}
+
 func tempDir(t *testing.T) string {
 	t.Helper()
 
@@ -190,4 +244,24 @@ func tempDir(t *testing.T) string {
 	assert.Nil(t, err)
 
 	return dir
+}
+
+func copy(t *testing.T, source, destination string) {
+	var err error = filepath.Walk(source, func(path string, info os.FileInfo, err error) error {
+		var relPath string = strings.Replace(path, source, "", 1)
+		if relPath == "" {
+			return nil
+		}
+		if info.IsDir() {
+			return os.Mkdir(filepath.Join(destination, relPath), 0755)
+		}
+		data, er := ioutil.ReadFile(filepath.Join(source, relPath))
+		if er != nil {
+			return er
+		}
+		return ioutil.WriteFile(filepath.Join(destination, relPath), data, 0664)
+	})
+	if err != nil {
+		assert.FailNow(t, err.Error())
+	}
 }

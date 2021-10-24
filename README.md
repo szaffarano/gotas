@@ -27,11 +27,11 @@ gotas is transparent.
 | sync         | ✅    | ✅    |
 | init         | ✅    | ✅    |
 | add user     | ✅    | ✅    |
-| remove user  | ✅    | ❌    |
+| remove user  | ✅    | ✅    |
 | suspend user | ✅    | ❌    |
 | resume user  | ✅    | ❌    |
 | add org      | ✅    | ✅    |
-| remove org   | ✅    | ❌    |
+| remove org   | ✅    | ✅    |
 | suspend org  | ✅    | ❌    |
 | resume org   | ✅    | ❌    |
 | client api   | ✅    | ❌    |

@@ -129,6 +129,29 @@ func (r *Repository) NewOrg(orgName string) (*auth.Organization, error) {
 	return &newOrg, nil
 }
 
+// DelOrg deletes a given Organization.
+func (r *Repository) DelOrg(orgName string) error {
+	foundIdx := -1
+	for i := 0; i < len(r.orgs) && foundIdx == -1; i++ {
+		if r.orgs[i].Name == orgName {
+			foundIdx = i
+		}
+	}
+	if foundIdx == -1 {
+		return fmt.Errorf("organization %q does not exists", orgName)
+	}
+
+	orgPath := filepath.Join(r.baseDir, orgsFolder, orgName)
+	if err := os.RemoveAll(orgPath); err != nil {
+		return fmt.Errorf("deleting org: %v", err)
+	}
+
+	r.orgs[foundIdx] = r.orgs[len(r.orgs)-1]
+	r.orgs = r.orgs[:len(r.orgs)-1]
+
+	return nil
+}
+
 // GetOrg initializes an Organization reading the information from the underlying file system.
 func (r *Repository) GetOrg(orgName string) (*auth.Organization, error) {
 	var users []auth.User
@@ -201,6 +224,34 @@ func (r *Repository) AddUser(orgName string, userName string) (*auth.User, error
 		Key:  key,
 		Org:  org,
 	}, nil
+}
+
+// DelUser deletes a given user from an Organization.  User
+func (r *Repository) DelUser(orgName string, userKey string) error {
+	org, err := r.GetOrg(orgName)
+	if err != nil {
+		return err
+	}
+
+	foundIdx := -1
+	for i := 0; i < len(org.Users) && foundIdx == -1; i++ {
+		if org.Users[i].Key == userKey {
+			foundIdx = i
+		}
+	}
+	if foundIdx == -1 {
+		return fmt.Errorf("user %q does not exists", userKey)
+	}
+
+	userPath := filepath.Join(r.baseDir, orgsFolder, org.Name, usersFolder, org.Users[foundIdx].Key)
+	if err := os.RemoveAll(userPath); err != nil {
+		return fmt.Errorf("removing user home: %v", err)
+	}
+
+	org.Users[foundIdx] = org.Users[len(r.orgs)-1]
+	org.Users = org.Users[:len(r.orgs)-1]
+
+	return nil
 }
 
 func (r *Repository) String() string {
