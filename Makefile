@@ -109,14 +109,6 @@ codequality:
 			gocyclo -over 22 $(gofile) || exit 1;)
 	@printf '%s\n' '$(OK)'
 
-	@echo -n "     LINT      "
-	@which golint > /dev/null; if [ $$? -ne 0 ]; then \
-		$(GO) get -u golang.org/x/lint/golint; \
-	fi
-	@$(foreach pkg, $(PKGS),\
-			golint -set_exit_status $(pkg) || exit 1;)
-	@printf '%s\n' '$(OK)'
-
 	@echo -n "     INEFF     "
 	@which ineffassign > /dev/null; if [ $$? -ne 0 ]; then \
 		$(GO) get -u github.com/gordonklaus/ineffassign; \
