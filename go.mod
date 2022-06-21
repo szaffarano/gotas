@@ -5,7 +5,7 @@ go 1.17
 require (
 	github.com/google/uuid v1.3.0
 	github.com/spf13/cobra v1.4.0
-	github.com/stretchr/testify v1.7.2
+	github.com/stretchr/testify v1.7.4
 	go.uber.org/zap v1.21.0
 )
 
