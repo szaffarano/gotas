@@ -4,8 +4,8 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"io/ioutil"
 	"net"
+	"os"
 	"sync"
 
 	"github.com/szaffarano/gotas/logger"
@@ -31,7 +31,7 @@ func newTLSServer(cfg TLSConfig, maxConcurrency int, handlerFunc Handler) (Serve
 	var cert tls.Certificate
 	var err error
 
-	if ca, err = ioutil.ReadFile(cfg.CaCert); err != nil {
+	if ca, err = os.ReadFile(cfg.CaCert); err != nil {
 		return nil, fmt.Errorf("reading root CA file: %v", err)
 	}
 

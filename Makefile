@@ -103,7 +103,7 @@ codequality:
 
 	@echo -n "     CYCLO     "
 	@which gocyclo > /dev/null; if [ $$? -ne 0 ]; then \
-		$(GO) get -u github.com/fzipp/gocyclo/cmd/gocyclo; \
+		$(GO) install github.com/fzipp/gocyclo/cmd/gocyclo@latest; \
 	fi
 	@$(foreach gofile, $(GOFILES_NOVENDOR),\
 			gocyclo -over 22 $(gofile) || exit 1;)
@@ -111,14 +111,14 @@ codequality:
 
 	@echo -n "     INEFF     "
 	@which ineffassign > /dev/null; if [ $$? -ne 0 ]; then \
-		$(GO) get -u github.com/gordonklaus/ineffassign; \
+		$(GO) install github.com/gordonklaus/ineffassign@latest; \
 	fi
 	@ineffassign . || exit 1
 	@printf '%s\n' '$(OK)'
 
 	@echo -n "     SPELL     "
 	@which misspell > /dev/null; if [ $$? -ne 0 ]; then \
-		$(GO) get -u github.com/client9/misspell/cmd/misspell; \
+		$(GO) install github.com/client9/misspell/cmd/misspell@latest; \
 	fi
 	@$(foreach gofile, $(GOFILES_NOVENDOR),\
 			misspell --error $(gofile) || exit 1;)
@@ -126,14 +126,14 @@ codequality:
 
 	@echo -n "     STATICCHECK "
 	@which staticcheck > /dev/null; if [ $$? -ne 0  ]; then \
-		$(GO) get -u honnef.co/go/tools/cmd/staticcheck; \
+		$(GO) install honnef.co/go/tools/cmd/staticcheck@latest; \
 	fi
 	@staticcheck $(PKGS) || exit 1
 	@printf '%s\n' '$(OK)'
 
 	@echo -n "     UNPARAM "
 	@which unparam > /dev/null; if [ $$? -ne 0 ]; then \
-		$(GO) get -u mvdan.cc/unparam; \
+		$(GO) install mvdan.cc/unparam@latest; \
 	fi
 	@unparam -exported=false $(PKGS)
 	@printf '%s\n' '$(OK)'

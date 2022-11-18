@@ -444,7 +444,7 @@ func mergeSort(left []Task, right []Task, combined Task) {
 	log.Infof("Merge result %s", combined.ComposeJSON())
 }
 
-////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////
 // Get the last modication time for a task.  Ideally this is the attribute
 // "modification".  If that is missing (pre taskwarrior 2.2.0), use the later of
 // the "entry", "end", or"start" dates.
@@ -479,7 +479,7 @@ func generatePayload(subset []Task, additions []string, key string) string {
 	return payload.String()
 }
 
-////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////
 // Determine the delta between 'from' and 'to', and apply only those changes to
 // 'base'.  All three tasks have the same uuid.
 func patch(base, from, to Task) {

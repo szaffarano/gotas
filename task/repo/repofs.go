@@ -3,7 +3,6 @@ package repo
 import (
 	"fmt"
 	"io/fs"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -41,7 +40,7 @@ func NewRepository(dataDir string, defaultConfig map[string]string) (*Repository
 		return nil, fmt.Errorf("%v: directory expected", dataDir)
 	} else if dataDir, err = filepath.Abs(dataDir); err != nil {
 		return nil, fmt.Errorf("calculate dir absolute path %v: %v", dataDir, err)
-	} else if files, err := ioutil.ReadDir(dataDir); err != nil {
+	} else if files, err := os.ReadDir(dataDir); err != nil {
 		return nil, fmt.Errorf("list dir %v: %v", dataDir, err)
 	} else if len(files) > 0 {
 		return nil, fmt.Errorf("%s: not empty", dataDir)

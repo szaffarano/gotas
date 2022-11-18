@@ -1,7 +1,6 @@
 package repo
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -77,7 +76,7 @@ func validReadAppender(t *testing.T) *DefaultReadAppender {
 func tempFile(t *testing.T) *os.File {
 	t.Helper()
 
-	file, err := ioutil.TempFile(os.TempDir(), "gotas")
+	file, err := os.CreateTemp(os.TempDir(), "gotas")
 
 	assert.Nil(t, err)
 
