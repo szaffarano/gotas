@@ -1,7 +1,6 @@
 package repo
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -239,7 +238,7 @@ func TestDelUser(t *testing.T) {
 func tempDir(t *testing.T) string {
 	t.Helper()
 
-	dir, err := ioutil.TempDir(os.TempDir(), "gotas")
+	dir, err := os.MkdirTemp(os.TempDir(), "gotas")
 
 	assert.Nil(t, err)
 
@@ -255,11 +254,11 @@ func copy(t *testing.T, source, destination string) {
 		if info.IsDir() {
 			return os.Mkdir(filepath.Join(destination, relPath), 0755)
 		}
-		data, er := ioutil.ReadFile(filepath.Join(source, relPath))
+		data, er := os.ReadFile(filepath.Join(source, relPath))
 		if er != nil {
 			return er
 		}
-		return ioutil.WriteFile(filepath.Join(destination, relPath), data, 0664)
+		return os.WriteFile(filepath.Join(destination, relPath), data, 0664)
 	})
 	if err != nil {
 		assert.FailNow(t, err.Error())

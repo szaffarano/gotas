@@ -5,8 +5,8 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
+	"os"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -225,7 +225,7 @@ func newTLSConfig(t *testing.T, conf string) *tls.Config {
 		assert.FailNow(t, err.Error())
 	}
 
-	ca, err := ioutil.ReadFile(cfg.Get("ca"))
+	ca, err := os.ReadFile(cfg.Get("ca"))
 	if err != nil {
 		assert.FailNow(t, err.Error())
 	}

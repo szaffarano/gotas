@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -226,7 +226,7 @@ func loadPayload(t *testing.T, path string) string {
 func loadFile(t *testing.T, path string) []byte {
 	t.Helper()
 
-	data, err := ioutil.ReadFile(filepath.Join("testdata", "payloads", path))
+	data, err := os.ReadFile(filepath.Join("testdata", "payloads", path))
 	if err != nil {
 		t.Errorf(err.Error())
 	}

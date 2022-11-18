@@ -1,7 +1,6 @@
 package config
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -121,7 +120,7 @@ func assertConfig(t *testing.T, conf Config) {
 func mockConfig(t *testing.T, content string) (string, string) {
 	t.Helper()
 
-	dir, err := ioutil.TempDir(os.TempDir(), "gotas")
+	dir, err := os.MkdirTemp(os.TempDir(), "gotas")
 	if err != nil {
 		t.Error(err.Error())
 	}

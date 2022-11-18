@@ -2,7 +2,7 @@ package task
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -224,7 +224,7 @@ func TestDetermineVersion(t *testing.T) {
 }
 
 func readFile(t *testing.T, path string) string {
-	content, err := ioutil.ReadFile(filepath.Join("testdata", path))
+	content, err := os.ReadFile(filepath.Join("testdata", path))
 	if err != nil {
 		assert.FailNowf(t, "error reading %v: %v", path, err.Error())
 	}
