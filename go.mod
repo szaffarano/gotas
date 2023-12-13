@@ -3,7 +3,7 @@ module github.com/szaffarano/gotas
 go 1.17
 
 require (
-	github.com/google/uuid v1.4.0
+	github.com/google/uuid v1.5.0
 	github.com/spf13/cobra v1.8.0
 	github.com/stretchr/testify v1.8.4
 	go.uber.org/zap v1.24.0
